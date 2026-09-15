@@ -1,0 +1,3 @@
+[submodule "external/LightWeightGameFramework"]
+	path = external/LightWeightGameFramework
+	url = https://github.com/ChaRob/LightWeightGameFramework.git
