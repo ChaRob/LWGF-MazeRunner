@@ -1,34 +1,44 @@
 #pragma once
 #include <vector>
 
-enum class Direction
-{
-	Up,
-	Down,
-	Left,
-	Right
-};
-
 enum class TileType
 {
 	Wall,
 	Path,
-	Start,
-	End
 };
+
+class MazeGenerator;
 
 class Maze
 {
 public:
-	Maze(int width, int height);
-	~Maze();
+	Maze(int _cellWidth, int _cellHeight);
+
+	int GetCellWidth() const noexcept;
+	int GetCellHeight() const noexcept;
+
+	int GetTileWidth() const noexcept;
+	int GetTileHeight() const noexcept;
+
+	TileType GetTile(int _x, int _y) const;
+
+	bool IsTileInside(int _x, int _y) const noexcept;
 
 private:
-	int cellWidth;
-	int cellHeight;
-	int tileWidth;
-	int tileHeight;
+	friend class MazeGenerator;
 
-	std::vector<TileType> data;
-	std::vector<std::vector<TileType>> map;
-}
+	void SetTile(int _x, int _y, TileType _type);
+
+	std::size_t GetIndex(int _x, int _y) const;
+
+public:
+
+
+private:
+	int m_cellWidth;
+	int m_cellHeight;
+	int m_tileWidth;
+	int m_tileHeight;
+
+	std::vector<TileType> m_tiles;
+};
