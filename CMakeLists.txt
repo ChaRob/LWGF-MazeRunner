@@ -14,6 +14,10 @@ add_executable(
     MazeRunner
 
     src/main.cpp
+    src/game/maze/Maze.cpp
+    src/game/maze/Maze.h
+    src/game/maze/MazeGenerator.cpp
+    src/game/maze/MazeGenerator.h
 )
 
 target_compile_features(
