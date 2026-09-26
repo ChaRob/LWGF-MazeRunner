@@ -13,6 +13,7 @@ int main()
 
 	Maze maze = MazeGenerator::Generate(10, 10, 12345);
 
+#if _DEBUG
     for (int y = 0; y < maze.GetTileHeight(); ++y)
     {
         for (int x = 0; x < maze.GetTileWidth(); ++x)
@@ -28,6 +29,7 @@ int main()
 
         std::cout << '\n';
     }
+#endif
 
     while (app.IsRunning())
     {

@@ -1,4 +1,6 @@
 #pragma once
+
+#include <cstddef>
 #include <vector>
 
 enum class TileType
@@ -30,8 +32,6 @@ private:
 	void SetTile(int _x, int _y, TileType _type);
 
 	std::size_t GetIndex(int _x, int _y) const;
-
-public:
 
 
 private:
