@@ -3,6 +3,9 @@
 
 #include "game/maze/MazeGenerator.h"
 
+#include <algorithm>
+#include <cmath>
+
 int main()
 {
     Application app;
@@ -19,15 +22,23 @@ int main()
         return -1;
     }
 
-	Maze maze = MazeGenerator::Generate(10, 10, 12345);
+	Maze maze = MazeGenerator::Generate(25, 25, 12345);
 
-    const float tileSize = 24.0f;
+    const float margin = 32.0f;
 
-    const float mazeWidth = maze.GetTileWidth() * tileSize;
-    const float mazeHeight = maze.GetTileHeight() * tileSize;
+    const float availableWidth = static_cast<float>(app.GetWidth()) - margin * 2.0f;
+    const float availableHeight = static_cast<float>(app.GetHeight()) - margin * 2.0f;
 
-    const float startX = (app.GetWidth() - mazeWidth) * 0.5f;
-    const float startY = (app.GetHeight() - mazeHeight) * 0.5f;
+    const float tileWidth = availableWidth / static_cast<float>(maze.GetTileWidth());
+    const float tileHeight = availableHeight / static_cast<float>(maze.GetTileHeight());
+
+    const float tileSize = std::floor(std::min(tileWidth, tileHeight));
+
+    const float mazeWidth = static_cast<float>(maze.GetTileWidth()) * tileSize;
+    const float mazeHeight = static_cast<float>(maze.GetTileHeight()) * tileSize;
+
+    const float startX = (static_cast<float>(app.GetWidth()) - mazeWidth) * 0.5f;
+    const float startY = (static_cast<float>(app.GetHeight()) - mazeHeight) * 0.5f;
 
     const Color wallColor = {
         0.8f,
