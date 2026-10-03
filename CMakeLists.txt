@@ -18,6 +18,10 @@ add_executable(
     src/game/maze/Maze.h
     src/game/maze/MazeGenerator.cpp
     src/game/maze/MazeGenerator.h
+    src/game/maze/CellPosition.h
+    src/game/maze/MazeEndpoints.h
+    src/game/maze/MazeEndpointGenerator.cpp
+    src/game/maze/MazeEndpointGenerator.h
 )
 
 target_compile_features(
