@@ -1,4 +1,5 @@
 #include "MazeGenerator.h"
+#include "CellPosition.h"
 
 #include <array>
 #include <cstdint>
@@ -7,12 +8,6 @@
 
 namespace
 {
-    struct CellPosition
-    {
-        int x;
-        int y;
-    };
-
     constexpr std::array<CellPosition, 4> Directions =
     {
         CellPosition{  0, -1 },

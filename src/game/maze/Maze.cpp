@@ -1,6 +1,7 @@
 #include "Maze.h"
 
 #include <stdexcept>
+#include <cmath>
 
 Maze::Maze(int _cellWidth, int _cellHeight)
     : m_cellWidth(_cellWidth)
@@ -66,6 +67,42 @@ bool Maze::IsTileInside(int _x, int _y) const noexcept
         _y >= 0 &&
         _x < m_tileWidth &&
         _y < m_tileHeight;
+}
+
+bool Maze::IsCellInside(const CellPosition& _position) const noexcept
+{
+    return _position.x >= 0 &&
+        _position.y >= 0 &&
+        _position.x < m_cellWidth &&
+        _position.y < m_cellHeight;
+}
+
+bool Maze::CanMove(const CellPosition& _from, const CellPosition& _to) const
+{
+    if (!IsCellInside(_from) || !IsCellInside(_to))
+    {
+        return false;
+    }
+
+    const int deltaX = _to.x - _from.x;
+    const int deltaY = _to.y - _from.y;
+
+    // 상하좌우로 한 Cell 이동하는 경우만 허용
+    if (std::abs(deltaX) + std::abs(deltaY) != 1)
+    {
+        return false;
+    }
+
+    const int fromTileX = _from.x * 2 + 1;
+    const int fromTileY = _from.y * 2 + 1;
+
+    const int toTileX = _to.x * 2 + 1;
+    const int toTileY = _to.y * 2 + 1;
+
+    const int wallTileX = (fromTileX + toTileX) / 2;
+    const int wallTileY = (fromTileY + toTileY) / 2;
+
+    return GetTile(wallTileX, wallTileY) == TileType::Path;
 }
 
 void Maze::SetTile(int _x, int _y, TileType _type)

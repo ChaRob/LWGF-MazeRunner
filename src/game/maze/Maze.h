@@ -1,5 +1,7 @@
 #pragma once
 
+#include "CellPosition.h"
+
 #include <cstddef>
 #include <vector>
 
@@ -25,6 +27,9 @@ public:
 	TileType GetTile(int _x, int _y) const;
 
 	bool IsTileInside(int _x, int _y) const noexcept;
+
+	bool IsCellInside(const CellPosition& _position) const noexcept;
+	bool CanMove(const CellPosition& _from, const CellPosition& _to) const;
 
 private:
 	friend class MazeGenerator;
