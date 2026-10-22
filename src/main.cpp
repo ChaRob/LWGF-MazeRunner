@@ -3,6 +3,7 @@
 #include <framework/Renderer2D.h>
 
 #include "game/GameFlow.h"
+#include "game/player/HeldMovementInput.h"
 
 #include <algorithm>
 #include <cmath>
@@ -282,6 +283,7 @@ static int RunGame(const char* _argv0)
     }
 
     GameFlow flow;
+    HeldMovementInput movementInput;
 
     while (app.IsRunning())
     {
@@ -312,27 +314,28 @@ static int RunGame(const char* _argv0)
             }
             else
             {
-                CellPosition direction = { 0, 0 };
-                if (app.IsKeyPressed(Key::UP))
+                const MovementButtons buttons =
                 {
-                    direction = { 0, 1 };
-                }
-                else if (app.IsKeyPressed(Key::DOWN))
-                {
-                    direction = { 0, -1 };
-                }
-                else if (app.IsKeyPressed(Key::LEFT))
-                {
-                    direction = { -1, 0 };
-                }
-                else if (app.IsKeyPressed(Key::RIGHT))
-                {
-                    direction = { 1, 0 };
-                }
+                    app.IsKeyDown(Key::UP),
+                    app.IsKeyDown(Key::DOWN),
+                    app.IsKeyDown(Key::LEFT),
+                    app.IsKeyDown(Key::RIGHT)
+                };
 
-                if (direction.x != 0 || direction.y != 0)
+                const CellPosition direction =
+                    movementInput.Update(app.GetDeltaTime(), buttons);
+
+                if (direction != CellPosition{ 0, 0 })
                 {
+                    const std::uint64_t previousStage =
+                        flow.GetSession()->GetStage().GetNumber();
                     flow.TryMove(direction);
+
+                    if (flow.GetSession()->GetStage().GetNumber() != previousStage)
+                    {
+                        // Holding a direction must not move into the next maze.
+                        movementInput.RequireRelease();
+                    }
                 }
             }
         }
@@ -356,6 +359,13 @@ static int RunGame(const char* _argv0)
             {
                 flow.ReturnToMainMenu();
             }
+        }
+
+        if (inputState != ScreenState::Playing
+            || flow.GetState() != ScreenState::Playing)
+        {
+            // Pause, result, fade and countdown all require a fresh key release.
+            movementInput.RequireRelease();
         }
 
         renderer.BeginFrame();
