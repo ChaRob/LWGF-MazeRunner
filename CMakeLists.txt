@@ -24,6 +24,8 @@ add_executable(
     src/game/maze/MazeEndpointGenerator.h
     src/game/player/Player.cpp
     src/game/player/Player.h
+    src/game/stage/Stage.cpp
+    src/game/stage/Stage.h
 )
 
 target_compile_features(
