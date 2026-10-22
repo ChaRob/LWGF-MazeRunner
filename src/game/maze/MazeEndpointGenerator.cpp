@@ -155,6 +155,7 @@ MazeEndpoints MazeEndpointGenerator::Generate(const Maze& _maze, std::uint32_t _
     return MazeEndpoints
     {
         start,
-        goal
+        goal,
+        distances[getCellIndex(goal)]
     };
 }
