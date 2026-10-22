@@ -192,7 +192,7 @@ int main()
         );
 
         renderer.DrawRect(
-            margin, static_cast<float>(app.GetHeight()) - 20.0f,
+            margin, static_cast<float>(app.GetHeight()) - 69.0f,
             timerWidth * ratio, 9.0f,
             game.GetStatus() == GameStatus::GameOver
                 ? gameOverColor : timerForeground
