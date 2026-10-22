@@ -11,7 +11,7 @@ add_subdirectory(
 )
 
 set(MAZERUNNER_GAME_SOURCES
-src/game/GameSession.cpp
+    src/game/GameSession.cpp
     src/game/GameSession.h
     src/game/GameFlow.cpp
     src/game/GameFlow.h
