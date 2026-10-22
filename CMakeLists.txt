@@ -16,6 +16,8 @@ add_executable(
     src/main.cpp
     src/game/GameSession.cpp
     src/game/GameSession.h
+    src/game/GameFlow.cpp
+    src/game/GameFlow.h
     src/game/maze/Maze.cpp
     src/game/maze/Maze.h
     src/game/maze/MazeGenerator.cpp
