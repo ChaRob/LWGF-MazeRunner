@@ -1,10 +1,12 @@
 #include <framework/Application.h>
+#include <framework/Font.h>
 #include <framework/Renderer2D.h>
 
 #include "game/GameSession.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <random>
 
@@ -24,10 +26,22 @@ int main()
         return -1;
     }
 
+    Font hudFont;
+    if (!hudFont.Load("external/LightWeightGameFramework/sample/assets/fonts/AnonymousPro-Regular.ttf", 48.0f))
+    {
+        std::fprintf(stderr, "Failed to load HUD font. Run from MazeRunner repository root and update the LWGF submodule.\n");
+        return -1;
+    }
+
     std::random_device randomDevice;
     GameSession game(randomDevice());
 
     const float margin = 32.0f;
+    const float hudHeight = 86.0f;
+    const Color textColor = { 0.96f, 0.97f, 1.0f, 1.0f };
+    const Color highlightColor = { 1.0f, 0.85f, 0.3f, 1.0f };
+    const Color overlayColor = { 0.06f, 0.08f, 0.11f, 0.94f };
+
 
     const Color wallColor = { 0.8f, 0.8f, 0.8f, 1.0f };
     const Color startColor = { 0.2f, 0.8f, 0.2f, 1.0f };
@@ -83,7 +97,7 @@ int main()
         const CellPosition& playerPosition = stage.GetPlayer().GetPosition();
 
         // Leave space above the maze for a temporary, text-free time bar.
-        const float hudHeight = 28.0f;
+        // Reserve space for Stage / Time / Score labels above the maze.
         const float availableWidth =
             static_cast<float>(app.GetWidth()) - margin * 2.0f;
         const float availableHeight =
@@ -141,6 +155,31 @@ int main()
             playerSize, playerSize, playerColor
         );
 
+        // HUD labels use the bottom-left screen coordinate system.
+        const float labelY = static_cast<float>(app.GetHeight()) - 40.0f;
+        const float textHeight = 28.0f;
+
+        char stageText[64] = {};
+        std::snprintf(stageText, sizeof(stageText), "STAGE %llu",
+            static_cast<unsigned long long>(stage.GetNumber()));
+        renderer.DrawText(hudFont, stageText, margin, labelY, textHeight, textColor);
+
+        char timeText[64] = {};
+        std::snprintf(timeText, sizeof(timeText), "TIME %.1fs",
+            game.GetRemainingTime());
+        const float timeWidth = renderer.MeasureTextWidth(hudFont, timeText, textHeight);
+        renderer.DrawText(hudFont, timeText,
+            (static_cast<float>(app.GetWidth()) - timeWidth) * 0.5f,
+            labelY, textHeight, textColor);
+
+        char scoreText[80] = {};
+        std::snprintf(scoreText, sizeof(scoreText), "SCORE %llu",
+            static_cast<unsigned long long>(game.GetScore()));
+        const float scoreWidth = renderer.MeasureTextWidth(hudFont, scoreText, textHeight);
+        renderer.DrawText(hudFont, scoreText,
+            static_cast<float>(app.GetWidth()) - margin - scoreWidth,
+            labelY, textHeight, textColor);
+
         const float timerWidth = availableWidth;
         const float ratio = std::clamp(
             game.GetRemainingTime() / game.GetInitialTime(),
@@ -148,12 +187,12 @@ int main()
         );
 
         renderer.DrawRect(
-            margin, static_cast<float>(app.GetHeight()) - 20.0f,
+            margin, static_cast<float>(app.GetHeight()) - 69.0f,
             timerWidth, 9.0f, timerBackground
         );
 
         renderer.DrawRect(
-            margin, static_cast<float>(app.GetHeight()) - 20.0f,
+            margin, static_cast<float>(app.GetHeight()) - 69.0f,
             timerWidth * ratio, 9.0f,
             game.GetStatus() == GameStatus::GameOver
                 ? gameOverColor : timerForeground
@@ -161,11 +200,40 @@ int main()
 
         if (game.GetStatus() == GameStatus::GameOver)
         {
-            // Temporary visual status until LWGF supports text rendering.
+            const float centerX = static_cast<float>(app.GetWidth()) * 0.5f;
+            const float centerY = static_cast<float>(app.GetHeight()) * 0.5f;
+
             renderer.DrawRect(
-                margin, static_cast<float>(app.GetHeight()) - 32.0f,
-                timerWidth, 6.0f, gameOverColor
+                centerX - 290.0f, centerY - 102.0f,
+                580.0f, 210.0f, overlayColor
             );
+
+            const float titleHeight = 48.0f;
+            const float titleWidth = renderer.MeasureTextWidth(
+                hudFont, "GAME OVER", titleHeight);
+            renderer.DrawText(hudFont, "GAME OVER",
+                centerX - titleWidth * 0.5f,
+                centerY + 52.0f, titleHeight, highlightColor);
+
+            char resultText[96] = {};
+            std::snprintf(resultText, sizeof(resultText),
+                "CLEARED %llu  SCORE %llu",
+                static_cast<unsigned long long>(game.GetCompletedStages()),
+                static_cast<unsigned long long>(game.GetScore()));
+
+            const float resultHeight = 26.0f;
+            const float resultWidth = renderer.MeasureTextWidth(
+                hudFont, resultText, resultHeight);
+            renderer.DrawText(hudFont, resultText,
+                centerX - resultWidth * 0.5f,
+                centerY - 6.0f, resultHeight, textColor);
+
+            const float hintHeight = 20.0f;
+            const float hintWidth = renderer.MeasureTextWidth(
+                hudFont, "ESC TO EXIT", hintHeight);
+            renderer.DrawText(hudFont, "ESC TO EXIT",
+                centerX - hintWidth * 0.5f,
+                centerY - 50.0f, hintHeight, textColor);
         }
 
         app.EndFrame();

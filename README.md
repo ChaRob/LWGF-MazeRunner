@@ -302,7 +302,7 @@ V1에서는 실제 크기 기반의 물리 충돌, 이동 속도 및 연속적�
 4. Game Over
 5. 최종 결과 표시
 
-현재 LWGF Renderer2D에는 텍스트 출력 API가 없으므로, 이번 Game Rules 구현에서는 임시 시간 게이지 및 콘솔 로그만 제공한다. Stage/Score/Time 숫자 HUD와 Game Over 결과 UI는 Framework 텍스트 렌더링 기능을 분리하여 보완한 뒤 진행한다.
+LWGF의 Font 및 Renderer2D::DrawText()로 Stage/Time/Score 숫자 HUD, 시간 게이지, Game Over 결과를 출력한다. 현재 HUD는 LWGF 샘플 폰트를 사용하므로 실행 작업 디렉터리는 MazeRunner 저장소 루트여야 한다. 배포용 폰트 파일은 게임 assets로 분리하는 후속 작업이 필요하다.
 
 ### Step 5 - Menu / Presentation
 
