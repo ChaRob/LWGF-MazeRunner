@@ -2,153 +2,198 @@
 #include <framework/Font.h>
 #include <framework/Renderer2D.h>
 
-#include "game/GameSession.h"
+#include "game/GameFlow.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdint>
 #include <filesystem>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
-// Windows headers define DrawText as DrawTextA/DrawTextW, clashing with Renderer2D::DrawText.
 #ifdef DrawText
 #undef DrawText
 #endif
 #endif
-#include <random>
-#include <stdexcept>
 
 namespace
 {
-std::filesystem::path GetExecutableDirectory(const char* _argv0)
-{
+    struct ButtonBounds
+    {
+        float x;
+        float y;
+        float width;
+        float height;
+
+        bool Contains(double _mouseX, double _mouseY) const noexcept
+        {
+            return _mouseX >= x && _mouseX <= x + width
+                && _mouseY >= y && _mouseY <= y + height;
+        }
+    };
+
+    constexpr Color TextColor = { 0.96f, 0.97f, 1.0f, 1.0f };
+    constexpr Color HighlightColor = { 1.0f, 0.85f, 0.3f, 1.0f };
+    constexpr Color BackgroundColor = { 0.055f, 0.075f, 0.11f, 1.0f };
+    constexpr Color SubtleTextColor = { 0.65f, 0.70f, 0.79f, 1.0f };
+    constexpr Color ButtonColor = { 0.16f, 0.22f, 0.31f, 1.0f };
+    constexpr Color HoverColor = { 0.26f, 0.36f, 0.49f, 1.0f };
+    constexpr Color WallColor = { 0.8f, 0.8f, 0.8f, 1.0f };
+    constexpr Color StartColor = { 0.2f, 0.8f, 0.2f, 1.0f };
+    constexpr Color GoalColor = { 0.8f, 0.2f, 0.2f, 1.0f };
+    constexpr Color PlayerColor = { 0.2f, 0.5f, 1.0f, 1.0f };
+    constexpr Color TimerBackground = { 0.25f, 0.25f, 0.25f, 1.0f };
+    constexpr Color TimerForeground = { 0.25f, 0.75f, 0.3f, 1.0f };
+
+    std::filesystem::path GetExecutableDirectory(const char* _argv0)
+    {
 #ifdef _WIN32
-    std::wstring executablePath(32768, L'\\0');
-    DWORD length = GetModuleFileNameW(nullptr, &executablePath[0],
-        static_cast<DWORD>(executablePath.size()));
-    if (length == 0 || length >= executablePath.size())
-        throw std::runtime_error("Cannot resolve MazeRunner executable directory");
-    executablePath.resize(length);
-    return std::filesystem::path(executablePath).parent_path();
+        std::wstring executablePath(32768, L'\0');
+        const DWORD length = GetModuleFileNameW(nullptr, executablePath.data(),
+            static_cast<DWORD>(executablePath.size()));
+        if (length == 0 || length >= executablePath.size())
+        {
+            throw std::runtime_error("Cannot resolve MazeRunner executable directory");
+        }
+        executablePath.resize(length);
+        return std::filesystem::path(executablePath).parent_path();
 #else
-    return std::filesystem::absolute(_argv0).parent_path();
+        return std::filesystem::absolute(_argv0 ? _argv0 : ".").parent_path();
 #endif
-}
-}
-
-int main(int argc, char** argv)
-{
-    Application app;
-
-    if (!app.Initialize())
-    {
-        return -1;
     }
 
-    Renderer2D renderer;
-
-    if (!renderer.Initialize(app.GetWidth(), app.GetHeight()))
+    ButtonBounds UpperButton(int _width, int _height)
     {
-        return -1;
+        return { _width * 0.5f - 145.0f, _height * 0.5f - 20.0f, 290.0f, 58.0f };
     }
 
-    Font hudFont;
-    const std::filesystem::path fontPath =
-        GetExecutableDirectory(argv[0]) / "assets" / "fonts" / "AnonymousPro-Regular.ttf";
-    const std::string fontPathUtf8 = fontPath.string();
-    if (!hudFont.Load(fontPathUtf8.c_str(), 48.0f))
+    ButtonBounds LowerButton(int _width, int _height)
     {
-        std::fprintf(stderr, "Failed to load HUD font: %s\n", fontPath.string().c_str());
-        return -1;
+        return { _width * 0.5f - 145.0f, _height * 0.5f - 100.0f, 290.0f, 58.0f };
     }
 
-    std::random_device randomDevice;
-    GameSession game(randomDevice());
-
-    const float margin = 32.0f;
-    const float hudHeight = 86.0f;
-    const Color textColor = { 0.96f, 0.97f, 1.0f, 1.0f };
-    const Color highlightColor = { 1.0f, 0.85f, 0.3f, 1.0f };
-    const Color overlayColor = { 0.06f, 0.08f, 0.11f, 0.94f };
-
-
-    const Color wallColor = { 0.8f, 0.8f, 0.8f, 1.0f };
-    const Color startColor = { 0.2f, 0.8f, 0.2f, 1.0f };
-    const Color goalColor = { 0.8f, 0.2f, 0.2f, 1.0f };
-    const Color playerColor = { 0.2f, 0.5f, 1.0f, 1.0f };
-    const Color timerBackground = { 0.25f, 0.25f, 0.25f, 1.0f };
-    const Color timerForeground = { 0.25f, 0.75f, 0.3f, 1.0f };
-    const Color gameOverColor = { 0.85f, 0.2f, 0.2f, 1.0f };
-
-    while (app.IsRunning())
+    ButtonBounds ResultButton(int _width, int _height)
     {
-        app.BeginFrame();
+        return { _width * 0.5f - 145.0f, _height * 0.5f - 135.0f, 290.0f, 58.0f };
+    }
 
-        if (app.IsKeyPressed(Key::ESCAPE))
-        {
-            app.RequestClose();
-            continue;
-        }
+    bool IsClicked(const Application& _app, const ButtonBounds& _bounds)
+    {
+        return _app.IsMouseButtonPressed(MouseButton::Left)
+            && _bounds.Contains(_app.GetMouseX(), _app.GetMouseY());
+    }
 
-        // Always resolve timeout before accepting input for this frame.
-        game.Update(app.GetDeltaTime());
+    void DrawCenteredText(Renderer2D& _renderer, const Font& _font,
+        std::string_view _text, float _centerX, float _baselineY,
+        float _height, const Color& _color)
+    {
+        const float textWidth = _renderer.MeasureTextWidth(_font, _text, _height);
+        _renderer.DrawText(_font, _text, _centerX - textWidth * 0.5f,
+            _baselineY, _height, _color);
+    }
 
-        if (game.GetStatus() == GameStatus::Playing)
-        {
-            CellPosition direction = { 0, 0 };
+    void DrawButton(Renderer2D& _renderer, const Font& _font,
+        std::string_view _text, const ButtonBounds& _bounds, bool _hovered)
+    {
+        _renderer.DrawRect(_bounds.x, _bounds.y, _bounds.width, _bounds.height,
+            _hovered ? HoverColor : ButtonColor);
 
-            if (app.IsKeyPressed(Key::UP))
-            {
-                direction = { 0, 1 };
-            }
-            else if (app.IsKeyPressed(Key::DOWN))
-            {
-                direction = { 0, -1 };
-            }
-            else if (app.IsKeyPressed(Key::LEFT))
-            {
-                direction = { -1, 0 };
-            }
-            else if (app.IsKeyPressed(Key::RIGHT))
-            {
-                direction = { 1, 0 };
-            }
+        const float fontHeight = 28.0f;
+        DrawCenteredText(_renderer, _font, _text,
+            _bounds.x + _bounds.width * 0.5f,
+            _bounds.y + (_bounds.height - fontHeight) * 0.5f + 5.0f,
+            fontHeight, TextColor);
+    }
 
-            if (direction.x != 0 || direction.y != 0)
-            {
-                game.TryMove(direction);
-            }
-        }
+    void DrawMainMenu(Renderer2D& _renderer, const Font& _font,
+        const Application& _app)
+    {
+        const float centerX = _app.GetWidth() * 0.5f;
+        const float centerY = _app.GetHeight() * 0.5f;
+        DrawCenteredText(_renderer, _font, "MAZE RUNNER",
+            centerX, centerY + 136.0f, 64.0f, HighlightColor);
+        DrawCenteredText(_renderer, _font, "ESCAPE THE MAZE BEFORE TIME RUNS OUT",
+            centerX, centerY + 88.0f, 21.0f, SubtleTextColor);
 
-        const Stage& stage = game.GetStage();
+        const ButtonBounds start = UpperButton(_app.GetWidth(), _app.GetHeight());
+        const ButtonBounds exit = LowerButton(_app.GetWidth(), _app.GetHeight());
+        DrawButton(_renderer, _font, "START", start,
+            start.Contains(_app.GetMouseX(), _app.GetMouseY()));
+        DrawButton(_renderer, _font, "EXIT", exit,
+            exit.Contains(_app.GetMouseX(), _app.GetMouseY()));
+    }
+
+    void DrawPausedMenu(Renderer2D& _renderer, const Font& _font,
+        const Application& _app)
+    {
+        const float centerX = _app.GetWidth() * 0.5f;
+        const float centerY = _app.GetHeight() * 0.5f;
+        // Intentionally do not render Maze, Player, Start or Goal while paused.
+        DrawCenteredText(_renderer, _font, "PAUSED",
+            centerX, centerY + 136.0f, 64.0f, HighlightColor);
+        DrawCenteredText(_renderer, _font, "ESC TO RESUME",
+            centerX, centerY + 88.0f, 22.0f, SubtleTextColor);
+
+        const ButtonBounds resume = UpperButton(_app.GetWidth(), _app.GetHeight());
+        const ButtonBounds menu = LowerButton(_app.GetWidth(), _app.GetHeight());
+        DrawButton(_renderer, _font, "CONTINUE", resume,
+            resume.Contains(_app.GetMouseX(), _app.GetMouseY()));
+        DrawButton(_renderer, _font, "MAIN MENU", menu,
+            menu.Contains(_app.GetMouseX(), _app.GetMouseY()));
+    }
+
+    void DrawResult(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, const GameSession& _game)
+    {
+        const float centerX = _app.GetWidth() * 0.5f;
+        const float centerY = _app.GetHeight() * 0.5f;
+        DrawCenteredText(_renderer, _font, "GAME OVER",
+            centerX, centerY + 136.0f, 64.0f, HighlightColor);
+
+        char clearedText[96] = {};
+        std::snprintf(clearedText, sizeof(clearedText), "STAGES CLEARED  %llu",
+            static_cast<unsigned long long>(_game.GetCompletedStages()));
+        DrawCenteredText(_renderer, _font, clearedText,
+            centerX, centerY + 72.0f, 27.0f, TextColor);
+
+        char scoreText[96] = {};
+        std::snprintf(scoreText, sizeof(scoreText), "FINAL SCORE  %llu",
+            static_cast<unsigned long long>(_game.GetScore()));
+        DrawCenteredText(_renderer, _font, scoreText,
+            centerX, centerY + 29.0f, 31.0f, TextColor);
+
+        const ButtonBounds menu = ResultButton(_app.GetWidth(), _app.GetHeight());
+        DrawButton(_renderer, _font, "MAIN MENU", menu,
+            menu.Contains(_app.GetMouseX(), _app.GetMouseY()));
+    }
+
+    void DrawGameplay(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, const GameSession& _game)
+    {
+        const Stage& stage = _game.GetStage();
         const Maze& maze = stage.GetMaze();
         const MazeEndpoints& endpoints = stage.GetEndpoints();
         const CellPosition& playerPosition = stage.GetPlayer().GetPosition();
 
-        // Leave space above the maze for a temporary, text-free time bar.
-        // Reserve space for Stage / Time / Score labels above the maze.
-        const float availableWidth =
-            static_cast<float>(app.GetWidth()) - margin * 2.0f;
+        const float margin = 32.0f;
+        const float hudHeight = 86.0f;
+        const float availableWidth = static_cast<float>(_app.GetWidth()) - margin * 2.0f;
         const float availableHeight =
-            static_cast<float>(app.GetHeight()) - margin * 2.0f - hudHeight;
-
+            static_cast<float>(_app.GetHeight()) - margin * 2.0f - hudHeight;
         const float tileSize = std::floor(std::min(
             availableWidth / static_cast<float>(maze.GetTileWidth()),
-            availableHeight / static_cast<float>(maze.GetTileHeight())
-        ));
+            availableHeight / static_cast<float>(maze.GetTileHeight())));
 
         const float mazeWidth = static_cast<float>(maze.GetTileWidth()) * tileSize;
         const float mazeHeight = static_cast<float>(maze.GetTileHeight()) * tileSize;
-        const float startX =
-            (static_cast<float>(app.GetWidth()) - mazeWidth) * 0.5f;
+        const float startX = (static_cast<float>(_app.GetWidth()) - mazeWidth) * 0.5f;
         const float startY =
-            (static_cast<float>(app.GetHeight()) - hudHeight - mazeHeight) * 0.5f;
-
-        renderer.BeginFrame();
+            (static_cast<float>(_app.GetHeight()) - hudHeight - mazeHeight) * 0.5f;
 
         for (int y = 0; y < maze.GetTileHeight(); ++y)
         {
@@ -156,117 +201,208 @@ int main(int argc, char** argv)
             {
                 if (maze.GetTile(x, y) == TileType::Wall)
                 {
-                    renderer.DrawRect(
-                        startX + x * tileSize,
-                        startY + y * tileSize,
-                        tileSize,
-                        tileSize,
-                        wallColor
-                    );
+                    _renderer.DrawRect(startX + x * tileSize, startY + y * tileSize,
+                        tileSize, tileSize, WallColor);
                 }
             }
         }
 
-        renderer.DrawRect(
+        _renderer.DrawRect(
             startX + (endpoints.start.x * 2 + 1) * tileSize,
             startY + (endpoints.start.y * 2 + 1) * tileSize,
-            tileSize, tileSize, startColor
-        );
+            tileSize, tileSize, StartColor);
 
-        renderer.DrawRect(
+        _renderer.DrawRect(
             startX + (endpoints.goal.x * 2 + 1) * tileSize,
             startY + (endpoints.goal.y * 2 + 1) * tileSize,
-            tileSize, tileSize, goalColor
-        );
+            tileSize, tileSize, GoalColor);
 
         const float playerSize = tileSize * 0.7f;
         const float playerOffset = (tileSize - playerSize) * 0.5f;
-
-        renderer.DrawRect(
+        _renderer.DrawRect(
             startX + (playerPosition.x * 2 + 1) * tileSize + playerOffset,
             startY + (playerPosition.y * 2 + 1) * tileSize + playerOffset,
-            playerSize, playerSize, playerColor
-        );
+            playerSize, playerSize, PlayerColor);
 
-        // HUD labels use the bottom-left screen coordinate system.
-        const float labelY = static_cast<float>(app.GetHeight()) - 40.0f;
+        const float labelY = static_cast<float>(_app.GetHeight()) - 40.0f;
         const float textHeight = 28.0f;
 
         char stageText[64] = {};
         std::snprintf(stageText, sizeof(stageText), "STAGE %llu",
             static_cast<unsigned long long>(stage.GetNumber()));
-        renderer.DrawText(hudFont, stageText, margin, labelY, textHeight, textColor);
+        _renderer.DrawText(_font, stageText, margin, labelY, textHeight, TextColor);
 
         char timeText[64] = {};
-        std::snprintf(timeText, sizeof(timeText), "TIME %.1fs",
-            game.GetRemainingTime());
-        const float timeWidth = renderer.MeasureTextWidth(hudFont, timeText, textHeight);
-        renderer.DrawText(hudFont, timeText,
-            (static_cast<float>(app.GetWidth()) - timeWidth) * 0.5f,
-            labelY, textHeight, textColor);
+        std::snprintf(timeText, sizeof(timeText), "TIME %.1fs", _game.GetRemainingTime());
+        DrawCenteredText(_renderer, _font, timeText,
+            static_cast<float>(_app.GetWidth()) * 0.5f,
+            labelY, textHeight, TextColor);
 
         char scoreText[80] = {};
         std::snprintf(scoreText, sizeof(scoreText), "SCORE %llu",
-            static_cast<unsigned long long>(game.GetScore()));
-        const float scoreWidth = renderer.MeasureTextWidth(hudFont, scoreText, textHeight);
-        renderer.DrawText(hudFont, scoreText,
-            static_cast<float>(app.GetWidth()) - margin - scoreWidth,
-            labelY, textHeight, textColor);
+            static_cast<unsigned long long>(_game.GetScore()));
+        const float scoreWidth = _renderer.MeasureTextWidth(_font, scoreText, textHeight);
+        _renderer.DrawText(_font, scoreText,
+            static_cast<float>(_app.GetWidth()) - margin - scoreWidth,
+            labelY, textHeight, TextColor);
 
-        const float timerWidth = availableWidth;
         const float ratio = std::clamp(
-            game.GetRemainingTime() / game.GetInitialTime(),
-            0.0f, 1.0f
-        );
+            _game.GetRemainingTime() / _game.GetInitialTime(), 0.0f, 1.0f);
+        const float timerY = static_cast<float>(_app.GetHeight()) - 69.0f;
 
-        renderer.DrawRect(
-            margin, static_cast<float>(app.GetHeight()) - 69.0f,
-            timerWidth, 9.0f, timerBackground
-        );
+        _renderer.DrawRect(margin, timerY, availableWidth, 9.0f, TimerBackground);
+        _renderer.DrawRect(margin, timerY, availableWidth * ratio, 9.0f,
+            TimerForeground);
+    }
+}
 
-        renderer.DrawRect(
-            margin, static_cast<float>(app.GetHeight()) - 69.0f,
-            timerWidth * ratio, 9.0f,
-            game.GetStatus() == GameStatus::GameOver
-                ? gameOverColor : timerForeground
-        );
+static int RunGame(const char* _argv0)
+{
+    Application app;
+    if (!app.Initialize())
+    {
+        return -1;
+    }
 
-        if (game.GetStatus() == GameStatus::GameOver)
+    Renderer2D renderer;
+    if (!renderer.Initialize(app.GetWidth(), app.GetHeight()))
+    {
+        return -1;
+    }
+
+    Font hudFont;
+    const std::filesystem::path fontPath =
+        GetExecutableDirectory(_argv0) /
+        "assets" / "fonts" / "AnonymousPro-Regular.ttf";
+    const std::string fontPathUtf8 = fontPath.string();
+    if (!hudFont.Load(fontPathUtf8.c_str(), 48.0f))
+    {
+        std::fprintf(stderr, "Failed to load HUD font: %s\n", fontPath.string().c_str());
+        return -1;
+    }
+
+    GameFlow flow;
+
+    while (app.IsRunning())
+    {
+        app.BeginFrame();
+
+        const ScreenState inputState = flow.GetState();
+        // Update gameplay before input, so timeout wins over moving onto Goal.
+        flow.Update(app.GetDeltaTime());
+
+        if (inputState == ScreenState::MainMenu
+            && flow.GetState() == ScreenState::MainMenu)
         {
-            const float centerX = static_cast<float>(app.GetWidth()) * 0.5f;
-            const float centerY = static_cast<float>(app.GetHeight()) * 0.5f;
+            if (IsClicked(app, UpperButton(app.GetWidth(), app.GetHeight())))
+            {
+                flow.StartGame();
+            }
+            else if (IsClicked(app, LowerButton(app.GetWidth(), app.GetHeight())))
+            {
+                app.RequestClose();
+            }
+        }
+        else if (inputState == ScreenState::Playing
+            && flow.GetState() == ScreenState::Playing)
+        {
+            if (app.IsKeyPressed(Key::ESCAPE))
+            {
+                flow.Pause();
+            }
+            else
+            {
+                CellPosition direction = { 0, 0 };
+                if (app.IsKeyPressed(Key::UP))
+                {
+                    direction = { 0, 1 };
+                }
+                else if (app.IsKeyPressed(Key::DOWN))
+                {
+                    direction = { 0, -1 };
+                }
+                else if (app.IsKeyPressed(Key::LEFT))
+                {
+                    direction = { -1, 0 };
+                }
+                else if (app.IsKeyPressed(Key::RIGHT))
+                {
+                    direction = { 1, 0 };
+                }
 
-            renderer.DrawRect(
-                centerX - 290.0f, centerY - 102.0f,
-                580.0f, 210.0f, overlayColor
-            );
+                if (direction.x != 0 || direction.y != 0)
+                {
+                    flow.TryMove(direction);
+                }
+            }
+        }
+        else if (inputState == ScreenState::Paused
+            && flow.GetState() == ScreenState::Paused)
+        {
+            if (app.IsKeyPressed(Key::ESCAPE)
+                || IsClicked(app, UpperButton(app.GetWidth(), app.GetHeight())))
+            {
+                flow.Resume();
+            }
+            else if (IsClicked(app, LowerButton(app.GetWidth(), app.GetHeight())))
+            {
+                flow.ReturnToMainMenu();
+            }
+        }
+        else if (inputState == ScreenState::Result
+            && flow.GetState() == ScreenState::Result)
+        {
+            if (IsClicked(app, ResultButton(app.GetWidth(), app.GetHeight())))
+            {
+                flow.ReturnToMainMenu();
+            }
+        }
 
-            const float titleHeight = 48.0f;
-            const float titleWidth = renderer.MeasureTextWidth(
-                hudFont, "GAME OVER", titleHeight);
-            renderer.DrawText(hudFont, "GAME OVER",
-                centerX - titleWidth * 0.5f,
-                centerY + 52.0f, titleHeight, highlightColor);
+        renderer.BeginFrame();
+        renderer.DrawRect(0.0f, 0.0f,
+            static_cast<float>(app.GetWidth()), static_cast<float>(app.GetHeight()),
+            BackgroundColor);
 
-            char resultText[96] = {};
-            std::snprintf(resultText, sizeof(resultText),
-                "CLEARED %llu  SCORE %llu",
-                static_cast<unsigned long long>(game.GetCompletedStages()),
-                static_cast<unsigned long long>(game.GetScore()));
+        const ScreenState visibleState = flow.GetVisibleState();
+        if (visibleState == ScreenState::MainMenu)
+        {
+            DrawMainMenu(renderer, hudFont, app);
+        }
+        else if (visibleState == ScreenState::Paused)
+        {
+            DrawPausedMenu(renderer, hudFont, app);
+        }
+        else if (visibleState == ScreenState::Result && flow.GetSession())
+        {
+            DrawResult(renderer, hudFont, app, *flow.GetSession());
+        }
+        else if ((visibleState == ScreenState::Playing
+            || visibleState == ScreenState::Countdown) && flow.GetSession())
+        {
+            DrawGameplay(renderer, hudFont, app, *flow.GetSession());
 
-            const float resultHeight = 26.0f;
-            const float resultWidth = renderer.MeasureTextWidth(
-                hudFont, resultText, resultHeight);
-            renderer.DrawText(hudFont, resultText,
-                centerX - resultWidth * 0.5f,
-                centerY - 6.0f, resultHeight, textColor);
+            if (flow.GetState() == ScreenState::Countdown)
+            {
+                char countdown[8] = {};
+                std::snprintf(countdown, sizeof(countdown), "%d",
+                    flow.GetCountdownNumber());
 
-            const float hintHeight = 20.0f;
-            const float hintWidth = renderer.MeasureTextWidth(
-                hudFont, "ESC TO EXIT", hintHeight);
-            renderer.DrawText(hudFont, "ESC TO EXIT",
-                centerX - hintWidth * 0.5f,
-                centerY - 50.0f, hintHeight, textColor);
+                const float centerX = app.GetWidth() * 0.5f;
+                const float centerY = app.GetHeight() * 0.5f;
+                renderer.DrawRect(centerX - 76.0f, centerY - 64.0f,
+                    152.0f, 152.0f, { 0.04f, 0.06f, 0.09f, 0.86f });
+                DrawCenteredText(renderer, hudFont, countdown,
+                    centerX, centerY - 30.0f, 88.0f, HighlightColor);
+            }
+        }
+
+        const float fadeAlpha = flow.GetFadeAlpha();
+        if (fadeAlpha > 0.0f)
+        {
+            renderer.DrawRect(0.0f, 0.0f,
+                static_cast<float>(app.GetWidth()),
+                static_cast<float>(app.GetHeight()),
+                { 0.0f, 0.0f, 0.0f, fadeAlpha });
         }
 
         app.EndFrame();
@@ -274,3 +410,16 @@ int main(int argc, char** argv)
 
     return 0;
 }
+
+#ifdef _WIN32
+// A Windows GUI executable must expose WinMain instead of the console entry point.
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+{
+    return RunGame(nullptr);
+}
+#else
+int main(int argc, char** argv)
+{
+    return RunGame(argc > 0 ? argv[0] : nullptr);
+}
+#endif
