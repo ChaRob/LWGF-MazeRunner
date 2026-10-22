@@ -63,9 +63,13 @@ void GameSession::TryMove(const CellPosition& _direction)
     const float timeBonus = static_cast<float>(distance) * BonusSecondsPerCell;
 
     // Provisional scoring: reward progress and actual maze path length.
+    const float savedSeconds = std::max(0.0f, timeBonus - m_stageElapsedTime);
+    const std::uint64_t speedPoints =
+        static_cast<std::uint64_t>(std::floor(savedSeconds * 10.0f));
     const std::uint64_t points =
         BaseScorePerStage +
-        static_cast<std::uint64_t>(distance) * ScorePerDistanceCell;
+        static_cast<std::uint64_t>(distance) * ScorePerDistanceCell +
+        speedPoints;
 
     if (m_score > std::numeric_limits<std::uint64_t>::max() - points)
     {
