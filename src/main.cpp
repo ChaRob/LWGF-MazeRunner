@@ -8,9 +8,34 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdint>
+#include <filesystem>
+#include <string>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#endif
 #include <random>
+#include <stdexcept>
 
-int main()
+namespace
+{
+std::filesystem::path GetExecutableDirectory(const char* _argv0)
+{
+#ifdef _WIN32
+    std::wstring executablePath(32768, L'\\0');
+    DWORD length = GetModuleFileNameW(nullptr, &executablePath[0],
+        static_cast<DWORD>(executablePath.size()));
+    if (length == 0 || length >= executablePath.size())
+        throw std::runtime_error("Cannot resolve MazeRunner executable directory");
+    executablePath.resize(length);
+    return std::filesystem::path(executablePath).parent_path();
+#else
+    return std::filesystem::absolute(_argv0).parent_path();
+#endif
+}
+}
+
+int main(int argc, char** argv)
 {
     Application app;
 
@@ -27,9 +52,11 @@ int main()
     }
 
     Font hudFont;
-    if (!hudFont.Load("external/LightWeightGameFramework/sample/assets/fonts/AnonymousPro-Regular.ttf", 48.0f))
+    const std::filesystem::path fontPath =
+        GetExecutableDirectory(argv[0]) / "assets" / "fonts" / "AnonymousPro-Regular.ttf";
+    if (!hudFont.Load(fontPath.string(), 48.0f))
     {
-        std::fprintf(stderr, "Failed to load HUD font. Run from MazeRunner repository root and update the LWGF submodule.\n");
+        std::fprintf(stderr, "Failed to load HUD font: %s\n", fontPath.string().c_str());
         return -1;
     }
 
