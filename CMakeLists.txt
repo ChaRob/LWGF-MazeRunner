@@ -29,7 +29,7 @@ set(MAZERUNNER_GAME_SOURCES
     src/game/stage/Stage.h
 )
 
-add_executable(MazeRunner
+add_executable(MazeRunner WIN32
     src/main.cpp
     ${MAZERUNNER_GAME_SOURCES}
 )
