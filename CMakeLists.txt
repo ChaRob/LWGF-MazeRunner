@@ -41,3 +41,19 @@ target_link_libraries(
     PRIVATE
         LWGF::Framework
 )
+
+# Bundle the HUD font next to the executable, independent of the launch directory.
+set(MAZERUNNER_HUD_FONT
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/LightWeightGameFramework/sample/assets/fonts/AnonymousPro-Regular.ttf"
+)
+if(NOT EXISTS "${MAZERUNNER_HUD_FONT}")
+    message(FATAL_ERROR "HUD font missing: ${MAZERUNNER_HUD_FONT}. Run git submodule update --init --recursive.")
+endif()
+add_custom_command(TARGET MazeRunner POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:MazeRunner>/assets/fonts"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${MAZERUNNER_HUD_FONT}"
+        "$<TARGET_FILE_DIR:MazeRunner>/assets/fonts/AnonymousPro-Regular.ttf"
+    COMMENT "Copy MazeRunner HUD font to executable assets directory"
+    VERBATIM
+)
