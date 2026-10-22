@@ -10,11 +10,8 @@ add_subdirectory(
     external/LightWeightGameFramework
 )
 
-add_executable(
-    MazeRunner
-
-    src/main.cpp
-    src/game/GameSession.cpp
+set(MAZERUNNER_GAME_SOURCES
+src/game/GameSession.cpp
     src/game/GameSession.h
     src/game/GameFlow.cpp
     src/game/GameFlow.h
@@ -30,6 +27,11 @@ add_executable(
     src/game/player/Player.h
     src/game/stage/Stage.cpp
     src/game/stage/Stage.h
+)
+
+add_executable(MazeRunner
+    src/main.cpp
+    ${MAZERUNNER_GAME_SOURCES}
 )
 
 target_compile_features(
@@ -59,3 +61,14 @@ add_custom_command(TARGET MazeRunner POST_BUILD
     COMMENT "Copy MazeRunner HUD font to executable assets directory"
     VERBATIM
 )
+
+include(CTest)
+
+if(BUILD_TESTING)
+    add_executable(MazeRunnerFlowTests
+        tests/GameFlowTests.cpp
+        ${MAZERUNNER_GAME_SOURCES}
+    )
+    target_compile_features(MazeRunnerFlowTests PRIVATE cxx_std_20)
+    add_test(NAME MazeRunnerFlowTests COMMAND MazeRunnerFlowTests)
+endif()
