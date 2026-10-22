@@ -1,13 +1,11 @@
 #include <framework/Application.h>
 #include <framework/Renderer2D.h>
 
-#include "game/stage/Stage.h"
+#include "game/GameSession.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <iostream>
-#include <limits>
 #include <random>
 
 int main()
@@ -26,11 +24,8 @@ int main()
         return -1;
     }
 
-    // A fixed value may be passed to mt19937 when reproducing a stage sequence.
     std::random_device randomDevice;
-    std::mt19937 seedEngine(randomDevice());
-
-    Stage stage(1, seedEngine());
+    GameSession game(randomDevice());
 
     const float margin = 32.0f;
 
@@ -38,10 +33,9 @@ int main()
     const Color startColor = { 0.2f, 0.8f, 0.2f, 1.0f };
     const Color goalColor = { 0.8f, 0.2f, 0.2f, 1.0f };
     const Color playerColor = { 0.2f, 0.5f, 1.0f, 1.0f };
-
-    std::cout << "Stage " << stage.GetNumber()
-              << " (" << stage.GetMaze().GetCellWidth() << "x"
-              << stage.GetMaze().GetCellHeight() << ")\n";
+    const Color timerBackground = { 0.25f, 0.25f, 0.25f, 1.0f };
+    const Color timerForeground = { 0.25f, 0.75f, 0.3f, 1.0f };
+    const Color gameOverColor = { 0.85f, 0.2f, 0.2f, 1.0f };
 
     while (app.IsRunning())
     {
@@ -53,55 +47,47 @@ int main()
             continue;
         }
 
-        CellPosition direction = { 0, 0 };
+        // Always resolve timeout before accepting input for this frame.
+        game.Update(app.GetDeltaTime());
 
-        // LWGF's rendering coordinate convention has positive Y upward.
-        if (app.IsKeyPressed(Key::UP))
+        if (game.GetStatus() == GameStatus::Playing)
         {
-            direction = { 0, 1 };
-        }
-        else if (app.IsKeyPressed(Key::DOWN))
-        {
-            direction = { 0, -1 };
-        }
-        else if (app.IsKeyPressed(Key::LEFT))
-        {
-            direction = { -1, 0 };
-        }
-        else if (app.IsKeyPressed(Key::RIGHT))
-        {
-            direction = { 1, 0 };
-        }
+            CellPosition direction = { 0, 0 };
 
-        if ((direction.x != 0 || direction.y != 0) &&
-            stage.TryMovePlayer(direction))
-        {
-            std::cout << "Stage " << stage.GetNumber() << " Clear!\n";
-
-            if (stage.GetNumber() == std::numeric_limits<std::uint64_t>::max())
+            if (app.IsKeyPressed(Key::UP))
             {
-                std::cout << "Stage counter limit reached.\n";
-                app.RequestClose();
-                continue;
+                direction = { 0, 1 };
+            }
+            else if (app.IsKeyPressed(Key::DOWN))
+            {
+                direction = { 0, -1 };
+            }
+            else if (app.IsKeyPressed(Key::LEFT))
+            {
+                direction = { -1, 0 };
+            }
+            else if (app.IsKeyPressed(Key::RIGHT))
+            {
+                direction = { 1, 0 };
             }
 
-            // Create the next maze and reset both endpoints and player.
-            stage = Stage(stage.GetNumber() + 1, seedEngine());
-
-            std::cout << "Stage " << stage.GetNumber()
-                      << " (" << stage.GetMaze().GetCellWidth() << "x"
-                      << stage.GetMaze().GetCellHeight() << ")\n";
+            if (direction.x != 0 || direction.y != 0)
+            {
+                game.TryMove(direction);
+            }
         }
 
+        const Stage& stage = game.GetStage();
         const Maze& maze = stage.GetMaze();
         const MazeEndpoints& endpoints = stage.GetEndpoints();
         const CellPosition& playerPosition = stage.GetPlayer().GetPosition();
 
-        // Recalculate layout for the current stage, including size increases.
+        // Leave space above the maze for a temporary, text-free time bar.
+        const float hudHeight = 28.0f;
         const float availableWidth =
             static_cast<float>(app.GetWidth()) - margin * 2.0f;
         const float availableHeight =
-            static_cast<float>(app.GetHeight()) - margin * 2.0f;
+            static_cast<float>(app.GetHeight()) - margin * 2.0f - hudHeight;
 
         const float tileSize = std::floor(std::min(
             availableWidth / static_cast<float>(maze.GetTileWidth()),
@@ -110,11 +96,10 @@ int main()
 
         const float mazeWidth = static_cast<float>(maze.GetTileWidth()) * tileSize;
         const float mazeHeight = static_cast<float>(maze.GetTileHeight()) * tileSize;
-
         const float startX =
             (static_cast<float>(app.GetWidth()) - mazeWidth) * 0.5f;
         const float startY =
-            (static_cast<float>(app.GetHeight()) - mazeHeight) * 0.5f;
+            (static_cast<float>(app.GetHeight()) - hudHeight - mazeHeight) * 0.5f;
 
         renderer.BeginFrame();
 
@@ -138,17 +123,13 @@ int main()
         renderer.DrawRect(
             startX + (endpoints.start.x * 2 + 1) * tileSize,
             startY + (endpoints.start.y * 2 + 1) * tileSize,
-            tileSize,
-            tileSize,
-            startColor
+            tileSize, tileSize, startColor
         );
 
         renderer.DrawRect(
             startX + (endpoints.goal.x * 2 + 1) * tileSize,
             startY + (endpoints.goal.y * 2 + 1) * tileSize,
-            tileSize,
-            tileSize,
-            goalColor
+            tileSize, tileSize, goalColor
         );
 
         const float playerSize = tileSize * 0.7f;
@@ -157,10 +138,35 @@ int main()
         renderer.DrawRect(
             startX + (playerPosition.x * 2 + 1) * tileSize + playerOffset,
             startY + (playerPosition.y * 2 + 1) * tileSize + playerOffset,
-            playerSize,
-            playerSize,
-            playerColor
+            playerSize, playerSize, playerColor
         );
+
+        const float timerWidth = availableWidth;
+        const float ratio = std::clamp(
+            game.GetRemainingTime() / game.GetInitialTime(),
+            0.0f, 1.0f
+        );
+
+        renderer.DrawRect(
+            margin, static_cast<float>(app.GetHeight()) - 20.0f,
+            timerWidth, 9.0f, timerBackground
+        );
+
+        renderer.DrawRect(
+            margin, static_cast<float>(app.GetHeight()) - 20.0f,
+            timerWidth * ratio, 9.0f,
+            game.GetStatus() == GameStatus::GameOver
+                ? gameOverColor : timerForeground
+        );
+
+        if (game.GetStatus() == GameStatus::GameOver)
+        {
+            // Temporary visual status until LWGF supports text rendering.
+            renderer.DrawRect(
+                margin, static_cast<float>(app.GetHeight()) - 32.0f,
+                timerWidth, 6.0f, gameOverColor
+            );
+        }
 
         app.EndFrame();
     }
