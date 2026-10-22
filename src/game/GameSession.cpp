@@ -9,6 +9,7 @@
 namespace
 {
     constexpr float InitialTime = 30.0f;
+    constexpr float MaximumTime = 30.0f;
     constexpr float BonusSecondsPerCell = 0.5f;
     constexpr std::uint64_t BaseScorePerStage = 100;
     constexpr std::uint64_t ScorePerDistanceCell = 10;
@@ -81,7 +82,7 @@ void GameSession::TryMove(const CellPosition& _direction)
     }
 
     ++m_completedStages;
-    m_remainingTime += timeBonus;
+    m_remainingTime = std::min(MaximumTime, m_remainingTime + timeBonus);
 
     std::cout << "Stage " << m_stage.GetNumber()
               << " clear! Distance: " << distance
