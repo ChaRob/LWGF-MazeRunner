@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../stage/Stage.h"
+#include "stage/Stage.h"
 
 #include <cstdint>
 #include <random>
