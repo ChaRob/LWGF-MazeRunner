@@ -54,7 +54,8 @@ int main(int argc, char** argv)
     Font hudFont;
     const std::filesystem::path fontPath =
         GetExecutableDirectory(argv[0]) / "assets" / "fonts" / "AnonymousPro-Regular.ttf";
-    if (!hudFont.Load(fontPath.string(), 48.0f))
+    const std::string fontPathUtf8 = fontPath.string();
+    if (!hudFont.Load(fontPathUtf8.c_str(), 48.0f))
     {
         std::fprintf(stderr, "Failed to load HUD font: %s\n", fontPath.string().c_str());
         return -1;
