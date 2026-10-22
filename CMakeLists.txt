@@ -14,6 +14,8 @@ add_executable(
     MazeRunner
 
     src/main.cpp
+    src/game/GameSession.cpp
+    src/game/GameSession.h
     src/game/maze/Maze.cpp
     src/game/maze/Maze.h
     src/game/maze/MazeGenerator.cpp
