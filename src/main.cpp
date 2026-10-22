@@ -12,7 +12,12 @@
 #include <string>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
+// Windows headers define DrawText as DrawTextA/DrawTextW, clashing with Renderer2D::DrawText.
+#ifdef DrawText
+#undef DrawText
+#endif
 #endif
 #include <random>
 #include <stdexcept>
