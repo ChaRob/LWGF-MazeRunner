@@ -33,16 +33,17 @@ C++20 기반의 LWGF(Light Weight Game Framework)를 사용해 개발하는 미�
 
 ## 2. Game Flow
 
-1. 게임 실행 후 메뉴를 확인한다.
-2. 게임 시작을 선택하면 Stage 1로 이동한다.
-3. 해당 스테이지의 미로가 생성되어 화면에 표시된다.
-4. 플레이어는 시작점에서 출발한다.
-5. 방향키를 사용하여 도착점까지 이동한다.
-6. 도착점에 도달하면 해당 스테이지를 클리어한다.
-7. 점수를 획득하고 남은 시간에 보너스 시간을 추가한다.
-8. 다음 스테이지의 새로운 미로를 생성한다.
-9. 제한 시간이 0이 될 때까지 3~8을 반복한다.
-10. 제한 시간이 0이 되면 Game Over 처리하고 최종 점수와 도달 스테이지를 표시한다.
+1. 게임 실행 시 MAIN MENU에 START / EXIT 버튼을 표시한다.
+2. START를 클릭하면 메뉴 Fade Out → 게임 Fade In 전환이 진행된다.
+3. 미로가 보이는 상태에서 3 → 2 → 1 카운트다운을 표시한다. 이때 게임 타이머와 이동은 비활성화된다.
+4. 카운트다운이 끝나면 Stage 1 게임 플레이와 제한시간이 시작된다.
+5. 방향키로 이동하여 Goal에 도착하면 점수와 보너스 시간을 얻고 다음 스테이지로 진행한다.
+6. 플레이 중 ESC를 누르면 미로를 아예 렌더링하지 않는 PAUSED 화면을 표시한다.
+7. PAUSED에서는 제한시간과 이동을 멈추며, CONTINUE 또는 ESC로 카운트다운 없이 즉시 복귀한다.
+8. PAUSED의 MAIN MENU를 누르면 현재 게임을 포기하고 Fade 전환으로 메인 메뉴로 돌아간다.
+9. 제한시간이 0이 되면 RESULT에 최종 점수와 클리어한 스테이지를 표시한다.
+10. RESULT는 자동 복귀하지 않으며 MAIN MENU 버튼을 눌러야 메인 메뉴로 돌아간다.
+11. 메인 메뉴 START로 다시 게임을 시작하면 스테이지·시간·점수가 모두 초기화된다.
 
 ## 3. V1 Scope
 
@@ -302,11 +303,21 @@ V1에서는 실제 크기 기반의 물리 충돌, 이동 속도 및 연속적�
 4. Game Over
 5. 최종 결과 표시
 
-LWGF의 Font 및 Renderer2D::DrawText()로 Stage/Time/Score 숫자 HUD, 시간 게이지, Game Over 결과를 출력한다. 현재 HUD는 LWGF 샘플 폰트를 사용하므로 실행 작업 디렉터리는 MazeRunner 저장소 루트여야 한다. 배포용 폰트 파일은 게임 assets로 분리하는 후속 작업이 필요하다.
+LWGF의 Font 및 Renderer2D::DrawText()로 Stage/Time/Score 숫자 HUD, 시간 게이지, 결과 화면을 출력한다. HUD 폰트는 CMake 빌드 시 실행 파일 옆 assets/fonts에 복사하여 작업 디렉터리에 의존하지 않도록 한다. 향후 배포용 에셋으로 정식 분리할 예정이다.
 
 ### Step 5 - Menu / Presentation
 
-핵심 게임 루프가 검증된 뒤 메뉴와 화면 전환 등 게임 진입/종료 흐름을 완성한다.
+- 게임 실행 시 MAIN MENU (START / EXIT)
+- Fade Out → Fade In (각 0.35초), 이후 3초 카운트다운
+- PLAYING 도중 ESC → PAUSED (미로·플레이어 렌더링 금지, 게임 타이머 정지)
+- PAUSED의 CONTINUE 또는 ESC → 즉시 재개 (재개 프레임 이동 입력 차단)
+- PAUSED의 MAIN MENU → 진행 중 게임 포기 후 메뉴 복귀
+- 제한시간 0초 → RESULT (클리어 스테이지 / 최종 점수)
+- RESULT의 MAIN MENU 버튼으로만 복귀 (자동 복귀 없음)
+- 재시작 시 GameSession을 새로 생성하고 점수·스테이지·타이머 초기화
+- V1 버튼은 LWGF 마우스 좌표/클릭 입력과 ASCII Font로 구현
+
+Fade와 Countdown 동안 제한시간이 감소하지 않으며, 화면 전환 중 중복 입력을 받지 않는다.
 
 ## 12. Future Considerations
 
