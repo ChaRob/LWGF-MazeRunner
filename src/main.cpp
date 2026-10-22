@@ -256,7 +256,7 @@ namespace
     }
 }
 
-int main(int argc, char** argv)
+static int RunGame(const char* _argv0)
 {
     Application app;
     if (!app.Initialize())
@@ -272,7 +272,7 @@ int main(int argc, char** argv)
 
     Font hudFont;
     const std::filesystem::path fontPath =
-        GetExecutableDirectory(argc > 0 ? argv[0] : nullptr) /
+        GetExecutableDirectory(_argv0) /
         "assets" / "fonts" / "AnonymousPro-Regular.ttf";
     const std::string fontPathUtf8 = fontPath.string();
     if (!hudFont.Load(fontPathUtf8.c_str(), 48.0f))
@@ -410,3 +410,16 @@ int main(int argc, char** argv)
 
     return 0;
 }
+
+#ifdef _WIN32
+// A Windows GUI executable must expose WinMain instead of the console entry point.
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+{
+    return RunGame(nullptr);
+}
+#else
+int main(int argc, char** argv)
+{
+    return RunGame(argc > 0 ? argv[0] : nullptr);
+}
+#endif
