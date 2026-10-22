@@ -1,14 +1,14 @@
 #include <framework/Application.h>
 #include <framework/Renderer2D.h>
 
-#include "game/maze/MazeGenerator.h"
-#include "game/maze/MazeEndpointGenerator.h"
-#include "game/player/Player.h"
+#include "game/stage/Stage.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <limits>
+#include <random>
 
 int main()
 {
@@ -26,193 +26,137 @@ int main()
         return -1;
     }
 
-    // Maze 생성
-    constexpr std::uint32_t seed = 24685;
-    constexpr float goalMinimumDistanceRatio = 0.9f;
+    // A fixed value may be passed to mt19937 when reproducing a stage sequence.
+    std::random_device randomDevice;
+    std::mt19937 seedEngine(randomDevice());
 
-    Maze maze = MazeGenerator::Generate(
-        25,
-        25,
-        seed
-    );
+    Stage stage(1, seedEngine());
 
-    // Start / Goal 생성
-    MazeEndpoints endpoints = MazeEndpointGenerator::Generate(
-        maze,
-        seed ^ 0x9E3779B9u,
-        goalMinimumDistanceRatio
-    );
-
-    // Player 생성
-    Player player(endpoints.start);
-
-    bool reachedGoal = false;
-
-    // Maze 화면 배치
     const float margin = 32.0f;
 
-    const float availableWidth =
-        static_cast<float>(app.GetWidth()) - margin * 2.0f;
+    const Color wallColor = { 0.8f, 0.8f, 0.8f, 1.0f };
+    const Color startColor = { 0.2f, 0.8f, 0.2f, 1.0f };
+    const Color goalColor = { 0.8f, 0.2f, 0.2f, 1.0f };
+    const Color playerColor = { 0.2f, 0.5f, 1.0f, 1.0f };
 
-    const float availableHeight =
-        static_cast<float>(app.GetHeight()) - margin * 2.0f;
+    std::cout << "Stage " << stage.GetNumber()
+              << " (" << stage.GetMaze().GetCellWidth() << "x"
+              << stage.GetMaze().GetCellHeight() << ")\n";
 
-    const float tileWidth =
-        availableWidth / static_cast<float>(maze.GetTileWidth());
-
-    const float tileHeight =
-        availableHeight / static_cast<float>(maze.GetTileHeight());
-
-    const float tileSize =
-        std::floor(std::min(tileWidth, tileHeight));
-
-    const float mazeWidth =
-        static_cast<float>(maze.GetTileWidth()) * tileSize;
-
-    const float mazeHeight =
-        static_cast<float>(maze.GetTileHeight()) * tileSize;
-
-    const float startX =
-        (static_cast<float>(app.GetWidth()) - mazeWidth) * 0.5f;
-
-    const float startY =
-        (static_cast<float>(app.GetHeight()) - mazeHeight) * 0.5f;
-
-    // Start / Goal Tile 좌표
-    const int startTileX = endpoints.start.x * 2 + 1;
-    const int startTileY = endpoints.start.y * 2 + 1;
-
-    const int goalTileX = endpoints.goal.x * 2 + 1;
-    const int goalTileY = endpoints.goal.y * 2 + 1;
-
-    // 렌더링 색상
-    const Color wallColor =
-    {
-        0.8f, 0.8f, 0.8f, 1.0f
-    };
-
-    const Color startColor =
-    {
-        0.2f, 0.8f, 0.2f, 1.0f
-    };
-
-    const Color goalColor =
-    {
-        0.8f, 0.2f, 0.2f, 1.0f
-    };
-
-    const Color playerColor =
-    {
-        0.2f, 0.5f, 1.0f, 1.0f
-    };
-
-    // Game Loop
     while (app.IsRunning())
     {
         app.BeginFrame();
 
-        // ESC: 종료
         if (app.IsKeyPressed(Key::ESCAPE))
         {
             app.RequestClose();
             continue;
         }
 
-        // Player 입력 처리
-        if (!reachedGoal)
+        CellPosition direction = { 0, 0 };
+
+        // LWGF's rendering coordinate convention has positive Y upward.
+        if (app.IsKeyPressed(Key::UP))
         {
-            CellPosition direction = { 0, 0 };
-
-            if (app.IsKeyPressed(Key::UP))
-            {
-                direction = { 0, 1 };
-            }
-            else if (app.IsKeyPressed(Key::DOWN))
-            {
-                direction = { 0, -1 };
-            }
-            else if (app.IsKeyPressed(Key::LEFT))
-            {
-                direction = { -1, 0 };
-            }
-            else if (app.IsKeyPressed(Key::RIGHT))
-            {
-                direction = { 1, 0 };
-            }
-
-            // 실제 이동 처리
-            if (direction.x != 0 || direction.y != 0)
-            {
-                player.TryMove(maze, direction);
-
-                // Goal 도달 확인
-                if (player.GetPosition() == endpoints.goal)
-                {
-                    reachedGoal = true;
-
-                    std::cout
-                        << "Stage Clear!" << std::endl;
-                }
-            }
+            direction = { 0, 1 };
         }
+        else if (app.IsKeyPressed(Key::DOWN))
+        {
+            direction = { 0, -1 };
+        }
+        else if (app.IsKeyPressed(Key::LEFT))
+        {
+            direction = { -1, 0 };
+        }
+        else if (app.IsKeyPressed(Key::RIGHT))
+        {
+            direction = { 1, 0 };
+        }
+
+        if ((direction.x != 0 || direction.y != 0) &&
+            stage.TryMovePlayer(direction))
+        {
+            std::cout << "Stage " << stage.GetNumber() << " Clear!\n";
+
+            if (stage.GetNumber() == std::numeric_limits<std::uint64_t>::max())
+            {
+                std::cout << "Stage counter limit reached.\n";
+                app.RequestClose();
+                continue;
+            }
+
+            // Create the next maze and reset both endpoints and player.
+            stage = Stage(stage.GetNumber() + 1, seedEngine());
+
+            std::cout << "Stage " << stage.GetNumber()
+                      << " (" << stage.GetMaze().GetCellWidth() << "x"
+                      << stage.GetMaze().GetCellHeight() << ")\n";
+        }
+
+        const Maze& maze = stage.GetMaze();
+        const MazeEndpoints& endpoints = stage.GetEndpoints();
+        const CellPosition& playerPosition = stage.GetPlayer().GetPosition();
+
+        // Recalculate layout for the current stage, including size increases.
+        const float availableWidth =
+            static_cast<float>(app.GetWidth()) - margin * 2.0f;
+        const float availableHeight =
+            static_cast<float>(app.GetHeight()) - margin * 2.0f;
+
+        const float tileSize = std::floor(std::min(
+            availableWidth / static_cast<float>(maze.GetTileWidth()),
+            availableHeight / static_cast<float>(maze.GetTileHeight())
+        ));
+
+        const float mazeWidth = static_cast<float>(maze.GetTileWidth()) * tileSize;
+        const float mazeHeight = static_cast<float>(maze.GetTileHeight()) * tileSize;
+
+        const float startX =
+            (static_cast<float>(app.GetWidth()) - mazeWidth) * 0.5f;
+        const float startY =
+            (static_cast<float>(app.GetHeight()) - mazeHeight) * 0.5f;
 
         renderer.BeginFrame();
 
-        // 벽 렌더링
         for (int y = 0; y < maze.GetTileHeight(); ++y)
         {
             for (int x = 0; x < maze.GetTileWidth(); ++x)
             {
-                if (maze.GetTile(x, y) != TileType::Wall)
+                if (maze.GetTile(x, y) == TileType::Wall)
                 {
-                    continue;
+                    renderer.DrawRect(
+                        startX + x * tileSize,
+                        startY + y * tileSize,
+                        tileSize,
+                        tileSize,
+                        wallColor
+                    );
                 }
-
-                renderer.DrawRect(
-                    startX + x * tileSize,
-                    startY + y * tileSize,
-                    tileSize,
-                    tileSize,
-                    wallColor
-                );
             }
         }
 
-        // Start 렌더링
         renderer.DrawRect(
-            startX + startTileX * tileSize,
-            startY + startTileY * tileSize,
+            startX + (endpoints.start.x * 2 + 1) * tileSize,
+            startY + (endpoints.start.y * 2 + 1) * tileSize,
             tileSize,
             tileSize,
             startColor
         );
 
-        // Goal 렌더링
         renderer.DrawRect(
-            startX + goalTileX * tileSize,
-            startY + goalTileY * tileSize,
+            startX + (endpoints.goal.x * 2 + 1) * tileSize,
+            startY + (endpoints.goal.y * 2 + 1) * tileSize,
             tileSize,
             tileSize,
             goalColor
         );
 
-        // Player 렌더링
-        const CellPosition& playerPosition =
-            player.GetPosition();
-
-        const int playerTileX =
-            playerPosition.x * 2 + 1;
-
-        const int playerTileY =
-            playerPosition.y * 2 + 1;
-
         const float playerSize = tileSize * 0.7f;
-        const float playerOffset =
-            (tileSize - playerSize) * 0.5f;
+        const float playerOffset = (tileSize - playerSize) * 0.5f;
 
         renderer.DrawRect(
-            startX + playerTileX * tileSize + playerOffset,
-            startY + playerTileY * tileSize + playerOffset,
+            startX + (playerPosition.x * 2 + 1) * tileSize + playerOffset,
+            startY + (playerPosition.y * 2 + 1) * tileSize + playerOffset,
             playerSize,
             playerSize,
             playerColor
