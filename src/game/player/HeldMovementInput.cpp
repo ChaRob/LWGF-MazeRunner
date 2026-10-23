@@ -1,5 +1,6 @@
 #include "HeldMovementInput.h"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -85,25 +86,20 @@ CellPosition HeldMovementInput::Update(float _deltaTime, const MovementButtons& 
 
     m_previous = _buttons;
 
+    // A single movement cooldown applies across axes and direction changes.
+    // Keep advancing it even when no key is held, so a fresh press after
+    // sufficient idle time can move immediately without bypassing the interval.
+    m_elapsedTime = std::min(RepeatInterval, m_elapsedTime + _deltaTime);
+    m_activeDirection = direction;
+
     if (direction == CellPosition{ 0, 0 })
     {
-        m_activeDirection = { 0, 0 };
-        m_elapsedTime = 0.0f;
         return { 0, 0 };
     }
 
-    if (direction != m_activeDirection)
-    {
-        // Immediate movement on first press or when changing directions.
-        m_activeDirection = direction;
-        m_elapsedTime = 0.0f;
-        return direction;
-    }
-
-    m_elapsedTime += _deltaTime;
     if (m_elapsedTime >= RepeatInterval)
     {
-        // At most one step per frame, including after an unusually long frame.
+        // At most one grid step per frame; discard long-frame backlog.
         m_elapsedTime = 0.0f;
         return direction;
     }
@@ -115,6 +111,6 @@ void HeldMovementInput::RequireRelease() noexcept
 {
     m_previous = {};
     m_activeDirection = { 0, 0 };
-    m_elapsedTime = 0.0f;
+    m_elapsedTime = RepeatInterval;
     m_waitingForRelease = true;
 }
