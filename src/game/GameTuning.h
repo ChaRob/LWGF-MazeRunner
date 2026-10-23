@@ -27,6 +27,7 @@ namespace GameTuning
         inline constexpr double MiddleSpawnChance = 0.15;
         inline constexpr double LateSpawnChance = 0.20;
         inline constexpr float RecoverySeconds = 5.0f;
+        inline constexpr float PickupNoticeSeconds = 1.0f;
 
         constexpr double GetSpawnChance(std::uint64_t _stageNumber) noexcept
         {
@@ -91,5 +92,6 @@ static_assert(GameTuning::TimeOrb::EarlySpawnChance >= 0.0
     && GameTuning::TimeOrb::LateSpawnChance >= 0.0
     && GameTuning::TimeOrb::LateSpawnChance <= 1.0,
     "Time Orb spawn probabilities must be between zero and one.");
-static_assert(GameTuning::TimeOrb::RecoverySeconds > 0.0f,
-    "Time Orb recovery amount must be positive.");
+static_assert(GameTuning::TimeOrb::RecoverySeconds > 0.0f
+    && GameTuning::TimeOrb::PickupNoticeSeconds > 0.0f,
+    "Time Orb recovery and pickup notice durations must be positive.");
