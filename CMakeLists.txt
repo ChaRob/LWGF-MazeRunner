@@ -29,6 +29,7 @@ set(MAZERUNNER_GAME_SOURCES
     src/game/player/Player.h
     src/game/player/HeldMovementInput.cpp
     src/game/player/HeldMovementInput.h
+    src/game/player/PlayerMovementVisual.h
     src/game/stage/Stage.cpp
     src/game/stage/Stage.h
 )

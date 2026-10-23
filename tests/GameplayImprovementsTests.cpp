@@ -1,6 +1,7 @@
 #include "../src/game/maze/MazeGenerator.h"
 #include "../src/game/maze/MazeEndpointGenerator.h"
 #include "../src/game/player/HeldMovementInput.h"
+#include "../src/game/player/PlayerMovementVisual.h"
 #include "../src/game/GameSession.h"
 #include "../src/game/GameTuning.h"
 #include "../src/game/StageClearNotice.h"
@@ -261,6 +262,83 @@ namespace
             "Showing a clear notice must not stop the gameplay timer");
     }
 
+    void TestBufferedCornering()
+    {
+        HeldMovementInput input;
+        const float interval = GameTuning::Movement::RepeatIntervalSeconds;
+        const MovementButtons none = {};
+        const MovementButtons right = { false, false, false, true };
+        const MovementButtons upAndRight = { true, false, false, true };
+        const MovementButtons up = { true, false, false, false };
+        const MovementAvailability rightOnly = { false, false, false, true };
+        const MovementAvailability upwardJunction = { true, false, false, true };
+        const MovementAvailability blocked = { false, false, false, false };
+
+        input.Update(0.0f, none);
+        Require(input.Update(0.0f, right, rightOnly) == CellPosition{ 1, 0 },
+            "Right press should move immediately when corridor is open");
+        Require(input.Update(interval * 0.6f, upAndRight, rightOnly)
+            == CellPosition{ 0, 0 },
+            "Early corner input must not bypass shared step cooldown");
+        Require(input.Update(interval * 0.5f, upAndRight, rightOnly)
+            == CellPosition{ 1, 0 },
+            "An early upward press must not stop forward corridor movement");
+        Require(input.Update(interval * 1.1f, upAndRight, upwardJunction)
+            == CellPosition{ 0, 1 },
+            "Buffered up turn must execute at first open intersection");
+        Require(input.Update(interval * 1.1f, upAndRight, upwardJunction)
+            == CellPosition{ 0, 1 },
+            "Most recently held direction remains preferred after turning");
+        Require(input.Update(interval * 1.1f, right, rightOnly)
+            == CellPosition{ 1, 0 },
+            "Releasing preferred turn must restore remaining held direction");
+        Require(input.Update(interval * 1.1f, up, blocked)
+            == CellPosition{ 0, 0 },
+            "A single held key must never pass a wall");
+        Require(input.Update(interval * 1.1f, up, upwardJunction)
+            == CellPosition{ 0, 1 },
+            "Blocked key may move once a traversable path exists");
+        Require(input.Update(interval * 1.1f, none)
+            == CellPosition{ 0, 0 },
+            "Releasing all keys must cancel pending cornering");
+
+        input.RequireRelease();
+        Require(input.Update(interval, upAndRight, upwardJunction) == CellPosition{ 0, 0 },
+            "Stage transition must discard buffered turns until release");
+        Require(input.Update(0.0f, none) == CellPosition{ 0, 0 },
+            "Neutral input should only rearm movement");
+        Require(input.Update(0.0f, right, rightOnly) == CellPosition{ 1, 0 },
+            "Fresh direction after release must work immediately");
+    }
+
+    void TestPlayerMovementVisual()
+    {
+        PlayerMovementVisual visual;
+        const float interval = GameTuning::Movement::RepeatIntervalSeconds;
+        visual.Reset({ 0, 0 });
+        Require(visual.GetPosition().x == 0.0f && visual.GetPosition().y == 0.0f,
+            "Reset should snap visual position to the logical cell");
+
+        visual.BeginMove({ 0, 0 }, { 1, 0 });
+        visual.Update(interval * 0.5f);
+        Require(std::fabs(visual.GetPosition().x - 0.5f) < 0.001f
+            && visual.GetPosition().y == 0.0f,
+            "Horizontal movement must interpolate continuously without diagonal drift");
+        visual.Update(interval * 0.5f);
+        Require(visual.GetPosition().x == 1.0f,
+            "Movement should finish at exact center of next cell");
+
+        visual.BeginMove({ 1, 0 }, { 1, 1 });
+        visual.Update(interval * 0.5f);
+        Require(visual.GetPosition().x == 1.0f
+            && std::fabs(visual.GetPosition().y - 0.5f) < 0.001f,
+            "Turning must follow perpendicular axis without cutting a corner");
+        visual.Reset({ 4, 3 });
+        visual.Update(5.0f);
+        Require(visual.GetPosition().x == 4.0f && visual.GetPosition().y == 3.0f,
+            "Stage change or pause must discard prior visual movement");
+    }
+
     void TestHeldMovement()
     {
         HeldMovementInput input;
@@ -326,6 +404,8 @@ int main()
     {
         TestDeadEndGoals();
         TestHeldMovement();
+        TestBufferedCornering();
+        TestPlayerMovementVisual();
         TestStageClearNotice();
         TestGameSessionTimeBonus();
         std::cout << "Gameplay improvement tests passed.\n";
