@@ -2,6 +2,7 @@
 #include "../src/game/maze/MazeEndpointGenerator.h"
 #include "../src/game/player/HeldMovementInput.h"
 #include "../src/game/GameSession.h"
+#include "../src/game/GameTuning.h"
 
 #include <algorithm>
 #include <array>
@@ -39,7 +40,8 @@ namespace
             {
                 const Maze maze = MazeGenerator::Generate(size, size, seed);
                 const MazeEndpoints endpoints =
-                    MazeEndpointGenerator::Generate(maze, seed ^ 0x9E3779B9u, 0.9f);
+                    MazeEndpointGenerator::Generate(maze, seed ^ 0x9E3779B9u,
+                        GameTuning::Maze::GoalMinimumDistanceRatio);
 
                 Require(endpoints.start != endpoints.goal, "Start and Goal must differ");
 
@@ -102,7 +104,7 @@ namespace
                 Require(distances[index(endpoints.goal)] == endpoints.shortestDistance,
                     "Returned Goal distance must match shortest path");
                 Require(endpoints.shortestDistance >=
-                    static_cast<int>(std::ceil(maxDistance * 0.9f)),
+                    static_cast<int>(std::ceil(maxDistance * GameTuning::Maze::GoalMinimumDistanceRatio)),
                     "Goal must preserve the minimum distance policy");
             }
         }
@@ -110,10 +112,8 @@ namespace
 
     void TestGameSessionTimeBonus()
     {
-        // Use enough elapsed time to avoid the 30-second cap masking the award.
-        constexpr float ElapsedSeconds = 8.0f;
-        constexpr float BonusSecondsPerCell = 0.20f;
-        constexpr float SpeedScoreBaselineSecondsPerCell = 0.5f;
+        // Spend some initial time so the reward is observable before the cap.
+        const float ElapsedSeconds = GameTuning::Time::InitialSeconds * 0.25f;
 
         GameSession game(12345u);
         const Stage& stage = game.GetStage();
@@ -194,18 +194,20 @@ namespace
         Require(game.GetCompletedStages() == 1, "Path should clear Stage 1");
         Require(game.GetStage().GetNumber() == 2, "Goal should start Stage 2");
 
-        const float expectedRemainingTime =
+        const float expectedRemainingTime = std::min(GameTuning::Time::MaximumSeconds,
             game.GetInitialTime() - ElapsedSeconds
-            + static_cast<float>(path.size()) * BonusSecondsPerCell;
+            + static_cast<float>(path.size()) * GameTuning::Time::ClearBonusSecondsPerCell);
         Require(std::fabs(game.GetRemainingTime() - expectedRemainingTime) < 0.001f,
-            "Clear bonus should grant only 0.20 seconds per cell");
+            "Clear bonus must use the configured seconds per cell");
 
         const float speedScoreSeconds = std::max(0.0f,
-            static_cast<float>(path.size()) * SpeedScoreBaselineSecondsPerCell
+            static_cast<float>(path.size()) * GameTuning::Score::SpeedBaselineSecondsPerCell
             - ElapsedSeconds);
         const std::uint64_t expectedScore =
-            100 + static_cast<std::uint64_t>(path.size()) * 10
-            + static_cast<std::uint64_t>(std::floor(speedScoreSeconds * 10.0f));
+            GameTuning::Score::BasePointsPerStage
+            + static_cast<std::uint64_t>(path.size()) * GameTuning::Score::DistancePointsPerCell
+            + static_cast<std::uint64_t>(
+                std::floor(speedScoreSeconds * GameTuning::Score::SpeedPointsPerSecondSaved));
         Require(game.GetScore() == expectedScore,
             "Time bonus reduction must not alter existing speed-score formula");
     }
@@ -213,6 +215,10 @@ namespace
     void TestHeldMovement()
     {
         HeldMovementInput input;
+        const float interval = GameTuning::Movement::RepeatIntervalSeconds;
+        const float shortDelay = interval * 0.4f;
+        const float finishDelay = interval * 0.7f;
+        const float fullDelay = interval * 1.1f;
         const MovementButtons none = {};
         const MovementButtons up = { true, false, false, false };
         const MovementButtons upAndRight = { true, false, false, true };
@@ -222,33 +228,33 @@ namespace
             "Initial neutral input must not move");
         Require(input.Update(0.0f, up) == CellPosition{ 0, 1 },
             "First keypress must move immediately");
-        Require(input.Update(0.07f, up) == CellPosition{ 0, 0 },
-            "Hold must not repeat before 0.15 seconds");
-        Require(input.Update(0.09f, up) == CellPosition{ 0, 1 },
-            "Hold must repeat after 0.15 seconds");
+        Require(input.Update(shortDelay, up) == CellPosition{ 0, 0 },
+            "Hold must not repeat before configured interval");
+        Require(input.Update(finishDelay, up) == CellPosition{ 0, 1 },
+            "Hold must repeat after configured interval");
 
         Require(input.Update(0.0f, upAndRight) == CellPosition{ 0, 0 },
             "Direction change must respect shared cooldown");
-        Require(input.Update(0.16f, upAndRight) == CellPosition{ 1, 0 },
+        Require(input.Update(fullDelay, upAndRight) == CellPosition{ 1, 0 },
             "Newest direction should move when shared cooldown expires");
 
         Require(input.Update(0.0f, up) == CellPosition{ 0, 0 },
             "Returning to a previous direction must respect cooldown");
-        Require(input.Update(0.16f, up) == CellPosition{ 0, 1 },
+        Require(input.Update(fullDelay, up) == CellPosition{ 0, 1 },
             "Previous held direction should resume after cooldown");
 
         Require(input.Update(0.0f, none) == CellPosition{ 0, 0 },
             "Releasing all keys must stop immediately");
         Require(input.Update(0.0f, right) == CellPosition{ 0, 0 },
             "Re-pressing a key must not bypass the shared cooldown");
-        Require(input.Update(0.16f, right) == CellPosition{ 1, 0 },
+        Require(input.Update(fullDelay, right) == CellPosition{ 1, 0 },
             "Re-pressed key must move once interval elapses");
 
-        Require(input.Update(0.5f, right) == CellPosition{ 1, 0 },
+        Require(input.Update(interval * 3.0f, right) == CellPosition{ 1, 0 },
             "Long frame must issue at most one step");
         Require(input.Update(0.0f, right) == CellPosition{ 0, 0 },
             "Long frame must not queue extra movement");
-        Require(input.Update(0.16f, none) == CellPosition{ 0, 0 },
+        Require(input.Update(fullDelay, none) == CellPosition{ 0, 0 },
             "Idle time must not cause movement");
         Require(input.Update(0.0f, up) == CellPosition{ 0, 1 },
             "First press after enough idle time must move immediately");
