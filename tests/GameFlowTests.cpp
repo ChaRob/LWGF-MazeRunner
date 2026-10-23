@@ -1,4 +1,5 @@
 #include "../src/game/GameFlow.h"
+#include "../src/game/GameTuning.h"
 
 #include <cmath>
 #include <exception>
@@ -26,18 +27,18 @@ int main()
 
         flow.StartGame();
         Require(flow.GetState() == ScreenState::FadingOut, "start should fade out");
-        flow.Update(0.35f);
+        flow.Update(GameTuning::Transition::FadeSeconds);
         Require(flow.GetState() == ScreenState::FadingIn, "start should fade in");
         Require(flow.GetSession() != nullptr, "new game should be created during fade");
         Require(flow.GetVisibleState() == ScreenState::Countdown,
             "fade-in must not reveal the maze");
-        flow.Update(0.35f);
+        flow.Update(GameTuning::Transition::FadeSeconds);
         Require(flow.GetState() == ScreenState::Countdown, "fade should lead to countdown");
-        Require(flow.GetCountdownNumber() == 3, "countdown should start at 3");
+        Require(flow.GetCountdownNumber() == GameTuning::Transition::CountdownSeconds, "countdown should start at 3");
 
         const float initialTime = flow.GetSession()->GetRemainingTime();
         flow.TryMove({ 0, 1 }); // Ignore movement during countdown.
-        flow.Update(2.0f);
+        flow.Update(static_cast<float>(GameTuning::Transition::CountdownSeconds - 1));
         Require(flow.GetCountdownNumber() == 1, "countdown should be 1 after 2 seconds");
         Require(flow.GetSession()->GetRemainingTime() == initialTime,
             "countdown must not consume game time");
@@ -47,7 +48,7 @@ int main()
         Require(flow.GetVisibleState() == ScreenState::Go,
             "GO should be rendered without showing the maze");
         flow.TryMove({ 0, 1 }); // Ignore movement during GO.
-        flow.Update(0.4f);
+        flow.Update(GameTuning::Transition::GoSeconds);
         Require(flow.GetState() == ScreenState::Playing,
             "GO should lead to gameplay");
         Require(flow.GetSession()->GetRemainingTime() == initialTime,
@@ -75,17 +76,17 @@ int main()
         Require(flow.GetState() == ScreenState::FadingOut, "return should fade out");
         Require(flow.GetVisibleState() == ScreenState::Paused,
             "pause-to-menu fade must keep maze hidden");
-        flow.Update(0.35f);
+        flow.Update(GameTuning::Transition::FadeSeconds);
         Require(flow.GetSession() == nullptr, "return should dispose session");
-        flow.Update(0.35f);
+        flow.Update(GameTuning::Transition::FadeSeconds);
         Require(flow.GetState() == ScreenState::MainMenu, "return should reach menu");
 
         flow.StartGame();
-        flow.Update(0.35f);
-        flow.Update(0.35f);
-        flow.Update(3.0f);
+        flow.Update(GameTuning::Transition::FadeSeconds);
+        flow.Update(GameTuning::Transition::FadeSeconds);
+        flow.Update(static_cast<float>(GameTuning::Transition::CountdownSeconds));
         Require(flow.GetState() == ScreenState::Go, "restart must show GO");
-        flow.Update(0.4f);
+        flow.Update(GameTuning::Transition::GoSeconds);
         Require(flow.GetState() == ScreenState::Playing, "restart must reach gameplay");
         Require(flow.GetSession()->GetStage().GetNumber() == 1,
             "restarting must reset stage");
@@ -100,8 +101,8 @@ int main()
         Require(flow.GetState() == ScreenState::Result,
             "result must wait for the main menu button");
         flow.ReturnToMainMenu();
-        flow.Update(0.35f);
-        flow.Update(0.35f);
+        flow.Update(GameTuning::Transition::FadeSeconds);
+        flow.Update(GameTuning::Transition::FadeSeconds);
         Require(flow.GetState() == ScreenState::MainMenu,
             "result main menu action should return to menu");
 
