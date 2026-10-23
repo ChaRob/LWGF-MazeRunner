@@ -19,15 +19,6 @@ namespace GameTuning
         inline constexpr float ClearBonusSecondsPerCell = 0.20f;
     }
 
-    namespace Score
-    {
-        inline constexpr std::uint64_t BasePointsPerStage = 100;
-        inline constexpr std::uint64_t DistancePointsPerCell = 10;
-        // Independent of the time awarded on clearing a stage.
-        inline constexpr float SpeedBaselineSecondsPerCell = 0.5f;
-        inline constexpr float SpeedPointsPerSecondSaved = 10.0f;
-    }
-
     namespace Maze
     {
         inline constexpr int InitialCellSize = 5;
@@ -55,9 +46,6 @@ static_assert(GameTuning::Time::InitialSeconds > 0.0f
     "The maximum time must be at least the positive starting time.");
 static_assert(GameTuning::Time::ClearBonusSecondsPerCell >= 0.0f,
     "Clear bonus cannot be negative.");
-static_assert(GameTuning::Score::SpeedBaselineSecondsPerCell > 0.0f
-    && GameTuning::Score::SpeedPointsPerSecondSaved >= 0.0f,
-    "Speed scoring settings must be valid.");
 static_assert(GameTuning::Maze::InitialCellSize >= 2
     && GameTuning::Maze::MaximumCellSize >= GameTuning::Maze::InitialCellSize
     && GameTuning::Maze::CellGrowthPerTier > 0

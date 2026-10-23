@@ -12,6 +12,8 @@ add_subdirectory(
 
 set(MAZERUNNER_GAME_SOURCES
     src/game/GameTuning.h
+    src/game/BestStageRecord.h
+    src/game/BestStageRecord.cpp
     src/game/StageClearNotice.h
     src/game/GameSession.cpp
     src/game/GameSession.h
@@ -83,4 +85,12 @@ if(BUILD_TESTING)
     )
     target_compile_features(MazeRunnerGameplayTests PRIVATE cxx_std_20)
     add_test(NAME MazeRunnerGameplayTests COMMAND MazeRunnerGameplayTests)
+
+    add_executable(MazeRunnerRecordTests
+        tests/BestStageRecordTests.cpp
+        src/game/BestStageRecord.cpp
+        src/game/BestStageRecord.h
+    )
+    target_compile_features(MazeRunnerRecordTests PRIVATE cxx_std_20)
+    add_test(NAME MazeRunnerRecordTests COMMAND MazeRunnerRecordTests)
 endif()
