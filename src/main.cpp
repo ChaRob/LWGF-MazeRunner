@@ -3,6 +3,7 @@
 #include <framework/Renderer2D.h>
 
 #include "game/GameFlow.h"
+#include "game/GameTuning.h"
 #include "game/player/HeldMovementInput.h"
 
 #include <algorithm>
@@ -196,14 +197,17 @@ namespace
         DrawCenteredText(_renderer, _font, countdown,
             centerX, centerY - 45.0f, 112.0f, HighlightColor);
 
-        constexpr float segmentWidth = 50.0f;
         constexpr float segmentGap = 12.0f;
         constexpr float segmentHeight = 6.0f;
-        constexpr float totalWidth = segmentWidth * 3.0f + segmentGap * 2.0f;
+        const int totalSegments = GameTuning::Transition::CountdownSeconds;
+        const float segmentWidth = std::min(50.0f,
+            200.0f / static_cast<float>(totalSegments));
+        const float totalWidth = segmentWidth * static_cast<float>(totalSegments)
+            + segmentGap * static_cast<float>(totalSegments - 1);
         const float startX = centerX - totalWidth * 0.5f;
-        const int activeSegments = 4 - _number;
+        const int activeSegments = totalSegments + 1 - _number;
 
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < totalSegments; ++i)
         {
             _renderer.DrawRect(startX + static_cast<float>(i) *
                 (segmentWidth + segmentGap), centerY - 113.0f,
@@ -431,7 +435,8 @@ static int RunGame(const char* _argv0)
             const bool showGo = flow.GetState() == ScreenState::Go;
             // Fade-in previews the initial "3" screen without revealing the maze.
             const int number = flow.GetState() == ScreenState::FadingIn
-                ? 3 : flow.GetCountdownNumber();
+                ? GameTuning::Transition::CountdownSeconds
+                : flow.GetCountdownNumber();
             DrawCountdownScreen(renderer, hudFont, app, number, showGo);
         }
         else if (visibleState == ScreenState::Playing && flow.GetSession())
