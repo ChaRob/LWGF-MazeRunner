@@ -9,7 +9,7 @@ namespace GameTuning
     namespace Movement
     {
         // Minimum time between grid moves, including changes of direction.
-        inline constexpr float RepeatIntervalSeconds = 0.15f;
+        inline constexpr float RepeatIntervalSeconds = 0.14f;
     }
 
     namespace Time
