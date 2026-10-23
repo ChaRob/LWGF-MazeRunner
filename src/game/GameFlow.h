@@ -11,6 +11,7 @@ enum class ScreenState
     FadingOut,
     FadingIn,
     Countdown,
+    Go,
     Playing,
     Paused,
     Result
@@ -44,6 +45,7 @@ private:
 
     static constexpr float FadeDuration = 0.35f;
     static constexpr float CountdownDuration = 3.0f;
+    static constexpr float GoDuration = 0.4f;
 
     std::mt19937 m_random;
     std::unique_ptr<GameSession> m_session;
@@ -52,4 +54,5 @@ private:
     Destination m_destination = Destination::NewGame;
     float m_fadeElapsed = 0.0f;
     float m_countdownRemaining = CountdownDuration;
+    float m_goRemaining = GoDuration;
 };
