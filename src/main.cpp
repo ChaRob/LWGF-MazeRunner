@@ -4,6 +4,7 @@
 
 #include "game/GameFlow.h"
 #include "game/GameTuning.h"
+#include "game/StageClearNotice.h"
 #include "game/player/HeldMovementInput.h"
 
 #include <algorithm>
@@ -216,6 +217,50 @@ namespace
         }
     }
 
+    void DrawStageClearNotice(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, const StageClearNotice& _notice)
+    {
+        if (!_notice.IsVisible())
+        {
+            return;
+        }
+
+        const float opacity = _notice.GetOpacity();
+        const float panelWidth = std::min(380.0f,
+            static_cast<float>(_app.GetWidth()) - 24.0f);
+        if (panelWidth <= 0.0f)
+        {
+            return;
+        }
+
+        const float panelHeight = 84.0f;
+        const float panelX = (static_cast<float>(_app.GetWidth()) - panelWidth) * 0.5f;
+        const float panelY = std::max(0.0f,
+            static_cast<float>(_app.GetHeight()) - 184.0f);
+
+        // Only this compact notice is translucent; never obscure the whole maze.
+        _renderer.DrawRect(panelX, panelY, panelWidth, panelHeight,
+            { 0.07f, 0.10f, 0.15f, opacity * 0.86f });
+        _renderer.DrawRect(panelX, panelY + panelHeight - 3.0f,
+            panelWidth, 3.0f, { 1.0f, 0.85f, 0.3f, opacity });
+
+        const StageClearReward& reward = _notice.GetReward();
+        char title[96] = {};
+        std::snprintf(title, sizeof(title), "STAGE %llu CLEAR!",
+            static_cast<unsigned long long>(reward.completedStage));
+        DrawCenteredText(_renderer, _font, title,
+            panelX + panelWidth * 0.5f, panelY + 46.0f, 25.0f,
+            { 1.0f, 0.85f, 0.3f, opacity });
+
+        char earned[128] = {};
+        std::snprintf(earned, sizeof(earned), "+%llu SCORE    +%.1fs",
+            static_cast<unsigned long long>(reward.earnedPoints),
+            static_cast<double>(reward.grantedTimeSeconds));
+        DrawCenteredText(_renderer, _font, earned,
+            panelX + panelWidth * 0.5f, panelY + 19.0f, 19.0f,
+            { 0.96f, 0.97f, 1.0f, opacity });
+    }
+
     void DrawGameplay(Renderer2D& _renderer, const Font& _font,
         const Application& _app, const GameSession& _game)
     {
@@ -327,6 +372,7 @@ static int RunGame(const char* _argv0)
 
     GameFlow flow;
     HeldMovementInput movementInput;
+    StageClearNotice stageClearNotice;
 
     while (app.IsRunning())
     {
@@ -335,6 +381,12 @@ static int RunGame(const char* _argv0)
         const ScreenState inputState = flow.GetState();
         // Update gameplay before input, so timeout wins over moving onto Goal.
         flow.Update(app.GetDeltaTime());
+        stageClearNotice.Update(app.GetDeltaTime());
+        if (flow.GetState() == ScreenState::MainMenu
+            || flow.GetState() == ScreenState::Result)
+        {
+            stageClearNotice.Clear();
+        }
 
         if (inputState == ScreenState::MainMenu
             && flow.GetState() == ScreenState::MainMenu)
@@ -370,12 +422,22 @@ static int RunGame(const char* _argv0)
 
                 if (direction != CellPosition{ 0, 0 })
                 {
-                    const std::uint64_t previousStage =
-                        flow.GetSession()->GetStage().GetNumber();
+                    const GameSession& previousGame = *flow.GetSession();
+                    const std::uint64_t previousClears = previousGame.GetCompletedStages();
+                    const std::uint64_t previousScore = previousGame.GetScore();
+                    const float previousTime = previousGame.GetRemainingTime();
+
                     flow.TryMove(direction);
 
-                    if (flow.GetSession()->GetStage().GetNumber() != previousStage)
+                    const GameSession& currentGame = *flow.GetSession();
+                    if (currentGame.GetCompletedStages() > previousClears)
                     {
+                        // The next maze is already playable. This is visual feedback only.
+                        stageClearNotice.Show({
+                            currentGame.GetCompletedStages(),
+                            currentGame.GetScore() - previousScore,
+                            std::max(0.0f, currentGame.GetRemainingTime() - previousTime)
+                        });
                         // Holding a direction must not move into the next maze.
                         movementInput.RequireRelease();
                     }
@@ -442,6 +504,7 @@ static int RunGame(const char* _argv0)
         else if (visibleState == ScreenState::Playing && flow.GetSession())
         {
             DrawGameplay(renderer, hudFont, app, *flow.GetSession());
+            DrawStageClearNotice(renderer, hudFont, app, stageClearNotice);
         }
 
         const float fadeAlpha = flow.GetFadeAlpha();
