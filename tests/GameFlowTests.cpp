@@ -29,6 +29,8 @@ int main()
         flow.Update(0.35f);
         Require(flow.GetState() == ScreenState::FadingIn, "start should fade in");
         Require(flow.GetSession() != nullptr, "new game should be created during fade");
+        Require(flow.GetVisibleState() == ScreenState::Countdown,
+            "fade-in must not reveal the maze");
         flow.Update(0.35f);
         Require(flow.GetState() == ScreenState::Countdown, "fade should lead to countdown");
         Require(flow.GetCountdownNumber() == 3, "countdown should start at 3");
@@ -41,9 +43,15 @@ int main()
             "countdown must not consume game time");
 
         flow.Update(1.0f);
-        Require(flow.GetState() == ScreenState::Playing, "countdown should begin play");
+        Require(flow.GetState() == ScreenState::Go, "countdown should show GO");
+        Require(flow.GetVisibleState() == ScreenState::Go,
+            "GO should be rendered without showing the maze");
+        flow.TryMove({ 0, 1 }); // Ignore movement during GO.
+        flow.Update(0.4f);
+        Require(flow.GetState() == ScreenState::Playing,
+            "GO should lead to gameplay");
         Require(flow.GetSession()->GetRemainingTime() == initialTime,
-            "game must begin with full time");
+            "countdown and GO must not consume game time");
 
         flow.Pause();
         Require(flow.GetState() == ScreenState::Paused, "ESC should pause");
@@ -76,6 +84,9 @@ int main()
         flow.Update(0.35f);
         flow.Update(0.35f);
         flow.Update(3.0f);
+        Require(flow.GetState() == ScreenState::Go, "restart must show GO");
+        flow.Update(0.4f);
+        Require(flow.GetState() == ScreenState::Playing, "restart must reach gameplay");
         Require(flow.GetSession()->GetStage().GetNumber() == 1,
             "restarting must reset stage");
         Require(flow.GetSession()->GetScore() == 0, "restarting must reset score");
