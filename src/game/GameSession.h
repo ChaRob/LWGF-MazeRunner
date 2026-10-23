@@ -23,7 +23,6 @@ public:
     GameStatus GetStatus() const noexcept;
     float GetRemainingTime() const noexcept;
     float GetInitialTime() const noexcept;
-    std::uint64_t GetScore() const noexcept;
     std::uint64_t GetCompletedStages() const noexcept;
 
 private:
@@ -31,7 +30,5 @@ private:
     Stage m_stage;
     GameStatus m_status = GameStatus::Playing;
     float m_remainingTime = 30.0f;
-    float m_stageElapsedTime = 0.0f;
-    std::uint64_t m_score = 0;
     std::uint64_t m_completedStages = 0;
 };
