@@ -93,4 +93,11 @@ if(BUILD_TESTING)
     )
     target_compile_features(MazeRunnerRecordTests PRIVATE cxx_std_20)
     add_test(NAME MazeRunnerRecordTests COMMAND MazeRunnerRecordTests)
+
+    add_executable(MazeRunnerTimeOrbTests
+        tests/TimeOrbTests.cpp
+        ${MAZERUNNER_GAME_SOURCES}
+    )
+    target_compile_features(MazeRunnerTimeOrbTests PRIVATE cxx_std_20)
+    add_test(NAME MazeRunnerTimeOrbTests COMMAND MazeRunnerTimeOrbTests)
 endif()
