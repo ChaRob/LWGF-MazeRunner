@@ -12,6 +12,7 @@ add_subdirectory(
 
 set(MAZERUNNER_GAME_SOURCES
     src/game/GameTuning.h
+    src/game/items/ActiveItemInventory.h
     src/game/BestStageRecord.h
     src/game/BestStageRecord.cpp
     src/game/StageClearNotice.h
@@ -100,4 +101,11 @@ if(BUILD_TESTING)
     )
     target_compile_features(MazeRunnerTimeOrbTests PRIVATE cxx_std_20)
     add_test(NAME MazeRunnerTimeOrbTests COMMAND MazeRunnerTimeOrbTests)
+
+    add_executable(MazeRunnerRecallTests
+        tests/RecallInventoryTests.cpp
+        ${MAZERUNNER_GAME_SOURCES}
+    )
+    target_compile_features(MazeRunnerRecallTests PRIVATE cxx_std_20)
+    add_test(NAME MazeRunnerRecallTests COMMAND MazeRunnerRecallTests)
 endif()
