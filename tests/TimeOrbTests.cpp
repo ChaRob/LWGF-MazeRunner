@@ -94,13 +94,15 @@ namespace
             "Stages 1-30 must roll ten percent");
         Require(GetSpawnChance(31) == 0.15 && GetSpawnChance(40) == 0.15,
             "Stages 31-40 must roll fifteen percent");
-        Require(GetSpawnChance(41) == 0.20 && GetSpawnChance(100) == 0.20,
-            "Stages 41+ must roll twenty percent");
+        Require(GetSpawnChance(41) == 0.25 && GetSpawnChance(50) == 0.25,
+            "Stages 41-50 must roll twenty-five percent");
+        Require(GetSpawnChance(51) == 0.35 && GetSpawnChance(100) == 0.35,
+            "Stages 51+ must roll thirty-five percent");
 
         // Deterministic Bernoulli draws should converge toward configured rates.
         // The tolerance is wider than normal sampling noise to avoid flaky tests.
         constexpr int SampleCount = 1000;
-        const std::array<std::uint64_t, 3> stageNumbers = { 1, 31, 41 };
+        const std::array<std::uint64_t, 4> stageNumbers = { 1, 31, 41, 51 };
         for (const std::uint64_t stageNumber : stageNumbers)
         {
             int spawned = 0;
