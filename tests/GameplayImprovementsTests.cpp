@@ -111,7 +111,7 @@ namespace
     void TestGameSessionTimeBonus()
     {
         constexpr float ElapsedSeconds = 4.0f;
-        constexpr float BonusSecondsPerCell = 0.15f;
+        constexpr float BonusSecondsPerCell = 0.20f;
         constexpr float SpeedScoreBaselineSecondsPerCell = 0.5f;
 
         GameSession game(12345u);
@@ -197,7 +197,7 @@ namespace
             game.GetInitialTime() - ElapsedSeconds
             + static_cast<float>(path.size()) * BonusSecondsPerCell;
         Require(std::fabs(game.GetRemainingTime() - expectedRemainingTime) < 0.001f,
-            "Clear bonus should grant only 0.15 seconds per cell");
+            "Clear bonus should grant only 0.20 seconds per cell");
 
         const float speedScoreSeconds = std::max(0.0f,
             static_cast<float>(path.size()) * SpeedScoreBaselineSecondsPerCell
@@ -221,29 +221,41 @@ namespace
             "Initial neutral input must not move");
         Require(input.Update(0.0f, up) == CellPosition{ 0, 1 },
             "First keypress must move immediately");
-        Require(input.Update(0.06f, up) == CellPosition{ 0, 0 },
-            "Hold must not repeat before the interval");
-        Require(input.Update(0.06f, up) == CellPosition{ 0, 1 },
-            "Hold must repeat after 0.12 seconds");
-        Require(input.Update(0.5f, up) == CellPosition{ 0, 1 },
-            "Long frame must issue at most one step");
-        Require(input.Update(0.0f, up) == CellPosition{ 0, 0 },
-            "Long frame must not cause a backlog of steps");
+        Require(input.Update(0.07f, up) == CellPosition{ 0, 0 },
+            "Hold must not repeat before 0.18 seconds");
+        Require(input.Update(0.12f, up) == CellPosition{ 0, 1 },
+            "Hold must repeat after 0.18 seconds");
 
-        Require(input.Update(0.0f, upAndRight) == CellPosition{ 1, 0 },
-            "Newly pressed direction must override held key");
-        Require(input.Update(0.0f, up) == CellPosition{ 0, 1 },
-            "Releasing newest key must return to previously held direction");
+        Require(input.Update(0.0f, upAndRight) == CellPosition{ 0, 0 },
+            "Direction change must respect shared cooldown");
+        Require(input.Update(0.19f, upAndRight) == CellPosition{ 1, 0 },
+            "Newest direction should move when shared cooldown expires");
+
+        Require(input.Update(0.0f, up) == CellPosition{ 0, 0 },
+            "Returning to a previous direction must respect cooldown");
+        Require(input.Update(0.19f, up) == CellPosition{ 0, 1 },
+            "Previous held direction should resume after cooldown");
 
         Require(input.Update(0.0f, none) == CellPosition{ 0, 0 },
             "Releasing all keys must stop immediately");
-        Require(input.Update(0.0f, right) == CellPosition{ 1, 0 },
-            "Next new press must move immediately");
+        Require(input.Update(0.0f, right) == CellPosition{ 0, 0 },
+            "Re-pressing a key must not bypass the shared cooldown");
+        Require(input.Update(0.19f, right) == CellPosition{ 1, 0 },
+            "Re-pressed key must move once interval elapses");
+
+        Require(input.Update(0.5f, right) == CellPosition{ 1, 0 },
+            "Long frame must issue at most one step");
+        Require(input.Update(0.0f, right) == CellPosition{ 0, 0 },
+            "Long frame must not queue extra movement");
+        Require(input.Update(0.19f, none) == CellPosition{ 0, 0 },
+            "Idle time must not cause movement");
+        Require(input.Update(0.0f, up) == CellPosition{ 0, 1 },
+            "First press after enough idle time must move immediately");
 
         input.RequireRelease(); // Stage change or pause.
-        Require(input.Update(1.0f, right) == CellPosition{ 0, 0 },
+        Require(input.Update(1.0f, up) == CellPosition{ 0, 0 },
             "Held key must not move after stage switch");
-        Require(input.Update(1.0f, right) == CellPosition{ 0, 0 },
+        Require(input.Update(1.0f, up) == CellPosition{ 0, 0 },
             "Held key must remain blocked until release");
         Require(input.Update(0.0f, none) == CellPosition{ 0, 0 },
             "Key release must only unlock input");
