@@ -265,9 +265,15 @@ namespace
 
         const StageClearReward& reward = _notice.GetReward();
         char title[96] = {};
-        std::snprintf(title, sizeof(title),
-            reward.newPersonalBest ? "NEW PERSONAL BEST!" : "STAGE %llu CLEAR!",
-            static_cast<unsigned long long>(reward.completedStage));
+        if (reward.newPersonalBest)
+        {
+            std::snprintf(title, sizeof(title), "NEW PERSONAL BEST!");
+        }
+        else
+        {
+            std::snprintf(title, sizeof(title), "STAGE %llu CLEAR!",
+                static_cast<unsigned long long>(reward.completedStage));
+        }
         DrawCenteredText(_renderer, _font, title,
             panelX + panelWidth * 0.5f, panelY + 46.0f, 25.0f,
             { 1.0f, 0.85f, 0.3f, opacity });
