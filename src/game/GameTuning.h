@@ -23,9 +23,11 @@ namespace GameTuning
     {
         inline constexpr std::uint64_t EarlyStageEnd = 30;
         inline constexpr std::uint64_t MiddleStageEnd = 40;
+        inline constexpr std::uint64_t LateStageEnd = 50;
         inline constexpr double EarlySpawnChance = 0.10;
         inline constexpr double MiddleSpawnChance = 0.15;
-        inline constexpr double LateSpawnChance = 0.20;
+        inline constexpr double LateSpawnChance = 0.25;
+        inline constexpr double EndgameSpawnChance = 0.35;
         inline constexpr float RecoverySeconds = 5.0f;
         inline constexpr float PickupNoticeSeconds = 1.0f;
 
@@ -33,7 +35,8 @@ namespace GameTuning
         {
             return _stageNumber <= EarlyStageEnd ? EarlySpawnChance
                 : _stageNumber <= MiddleStageEnd ? MiddleSpawnChance
-                : LateSpawnChance;
+                : _stageNumber <= LateStageEnd ? LateSpawnChance
+                : EndgameSpawnChance;
         }
     }
 
@@ -83,14 +86,17 @@ static_assert(GameTuning::Transition::CountdownSeconds >= 1
     "Countdown must last between one and nine whole seconds.");
 
 static_assert(GameTuning::TimeOrb::EarlyStageEnd > 0
-    && GameTuning::TimeOrb::MiddleStageEnd > GameTuning::TimeOrb::EarlyStageEnd,
+    && GameTuning::TimeOrb::MiddleStageEnd > GameTuning::TimeOrb::EarlyStageEnd
+    && GameTuning::TimeOrb::LateStageEnd > GameTuning::TimeOrb::MiddleStageEnd,
     "Time Orb stage tiers must be strictly increasing.");
 static_assert(GameTuning::TimeOrb::EarlySpawnChance >= 0.0
     && GameTuning::TimeOrb::EarlySpawnChance <= 1.0
     && GameTuning::TimeOrb::MiddleSpawnChance >= 0.0
     && GameTuning::TimeOrb::MiddleSpawnChance <= 1.0
     && GameTuning::TimeOrb::LateSpawnChance >= 0.0
-    && GameTuning::TimeOrb::LateSpawnChance <= 1.0,
+    && GameTuning::TimeOrb::LateSpawnChance <= 1.0
+    && GameTuning::TimeOrb::EndgameSpawnChance >= 0.0
+    && GameTuning::TimeOrb::EndgameSpawnChance <= 1.0,
     "Time Orb spawn probabilities must be between zero and one.");
 static_assert(GameTuning::TimeOrb::RecoverySeconds > 0.0f
     && GameTuning::TimeOrb::PickupNoticeSeconds > 0.0f,
