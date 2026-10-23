@@ -42,9 +42,12 @@ namespace GameTuning
         inline constexpr float FadeSeconds = 0.35f;
         inline constexpr int CountdownSeconds = 3;
         inline constexpr float GoSeconds = 0.4f;
+        inline constexpr float ClearNoticeSeconds = 1.0f;
     }
 }
 
+static_assert(GameTuning::Transition::ClearNoticeSeconds > 0.0f,
+    "Stage clear notice duration must be positive.");
 static_assert(GameTuning::Movement::RepeatIntervalSeconds > 0.0f,
     "Movement interval must be positive.");
 static_assert(GameTuning::Time::InitialSeconds > 0.0f

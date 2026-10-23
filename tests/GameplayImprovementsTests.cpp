@@ -3,6 +3,7 @@
 #include "../src/game/player/HeldMovementInput.h"
 #include "../src/game/GameSession.h"
 #include "../src/game/GameTuning.h"
+#include "../src/game/StageClearNotice.h"
 
 #include <algorithm>
 #include <array>
@@ -212,6 +213,54 @@ namespace
             "Time bonus reduction must not alter existing speed-score formula");
     }
 
+    void TestStageClearNotice()
+    {
+        StageClearNotice notice;
+        Require(!notice.IsVisible(), "Clear notice must start hidden");
+        Require(notice.GetOpacity() == 0.0f, "Hidden notice must be transparent");
+
+        notice.Show({ 6, 350, 2.5f });
+        Require(notice.IsVisible(), "Clear notice must appear immediately");
+        Require(notice.GetReward().completedStage == 6
+            && notice.GetReward().earnedPoints == 350
+            && std::fabs(notice.GetReward().grantedTimeSeconds - 2.5f) < 0.001f,
+            "Clear notice must retain the completed stage and actual rewards");
+        Require(notice.GetOpacity() == 1.0f, "New notice must be fully visible");
+
+        notice.Update(0.7f);
+        Require(notice.GetOpacity() == 1.0f, "Notice must remain readable before fade");
+        notice.Update(0.2f);
+        Require(notice.IsVisible() && notice.GetOpacity() > 0.0f
+            && notice.GetOpacity() < 1.0f,
+            "Notice must fade out near the end of its one-second lifetime");
+
+        // A second clear replaces the previous reward and resets the one-second timer.
+        notice.Show({ 7, 420, 0.0f });
+        Require(notice.GetReward().completedStage == 7
+            && notice.GetReward().earnedPoints == 420
+            && notice.GetReward().grantedTimeSeconds == 0.0f,
+            "Consecutive clears must replace stale notice data");
+        Require(notice.GetOpacity() == 1.0f, "New clear must reset notice opacity");
+        notice.Update(GameTuning::Transition::ClearNoticeSeconds * 0.99f);
+        Require(notice.IsVisible(), "Notice must last almost the full second");
+        notice.Update(GameTuning::Transition::ClearNoticeSeconds * 0.02f);
+        Require(!notice.IsVisible(), "Notice must disappear after one second");
+
+        notice.Show({ 8, 500, 1.0f });
+        notice.Clear();
+        Require(!notice.IsVisible(), "Returning to the menu must dismiss the notice");
+
+        // The notice exists independently of the session and cannot pause the clock.
+        GameSession runningGame(6789u);
+        const float timeBefore = runningGame.GetRemainingTime();
+        notice.Show({ 1, 100, 1.0f });
+        runningGame.Update(0.5f);
+        notice.Update(0.5f);
+        Require(runningGame.GetStatus() == GameStatus::Playing
+            && std::fabs(runningGame.GetRemainingTime() - (timeBefore - 0.5f)) < 0.001f,
+            "Showing a clear notice must not stop the gameplay timer");
+    }
+
     void TestHeldMovement()
     {
         HeldMovementInput input;
@@ -277,6 +326,7 @@ int main()
     {
         TestDeadEndGoals();
         TestHeldMovement();
+        TestStageClearNotice();
         TestGameSessionTimeBonus();
         std::cout << "Gameplay improvement tests passed.\n";
         return 0;
