@@ -10,7 +10,7 @@ namespace
 {
     constexpr float InitialTime = 30.0f;
     constexpr float MaximumTime = 30.0f;
-    constexpr float BonusSecondsPerCell = 0.15f;
+    constexpr float BonusSecondsPerCell = 0.20f;
     // Keep the original speed-score baseline when rebalancing granted game time.
     constexpr float SpeedScoreBaselineSecondsPerCell = 0.5f;
     constexpr std::uint64_t BaseScorePerStage = 100;
