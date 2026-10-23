@@ -3,6 +3,7 @@
 #include <framework/Renderer2D.h>
 
 #include "game/GameFlow.h"
+#include "game/BestStageRecord.h"
 #include "game/GameTuning.h"
 #include "game/StageClearNotice.h"
 #include "game/player/HeldMovementInput.h"
@@ -115,7 +116,7 @@ namespace
     }
 
     void DrawMainMenu(Renderer2D& _renderer, const Font& _font,
-        const Application& _app)
+        const Application& _app, const BestStageRecord& _record)
     {
         const float centerX = _app.GetWidth() * 0.5f;
         const float centerY = _app.GetHeight() * 0.5f;
@@ -130,6 +131,17 @@ namespace
             start.Contains(_app.GetMouseX(), _app.GetMouseY()));
         DrawButton(_renderer, _font, "EXIT", exit,
             exit.Contains(_app.GetMouseX(), _app.GetMouseY()));
+
+        char bestText[96] = {};
+        std::snprintf(bestText, sizeof(bestText), "PERSONAL BEST  %llu CLEARED",
+            static_cast<unsigned long long>(_record.GetBest()));
+        DrawCenteredText(_renderer, _font, bestText,
+            centerX, centerY - 150.0f, 24.0f, SubtleTextColor);
+        if (_record.HasStorageError())
+        {
+            DrawCenteredText(_renderer, _font, "RECORD SAVE ERROR",
+                centerX, centerY - 183.0f, 19.0f, HighlightColor);
+        }
     }
 
     void DrawPausedMenu(Renderer2D& _renderer, const Font& _font,
@@ -152,7 +164,8 @@ namespace
     }
 
     void DrawResult(Renderer2D& _renderer, const Font& _font,
-        const Application& _app, const GameSession& _game)
+        const Application& _app, const GameSession& _game,
+        const BestStageRecord& _record)
     {
         const float centerX = _app.GetWidth() * 0.5f;
         const float centerY = _app.GetHeight() * 0.5f;
@@ -165,11 +178,16 @@ namespace
         DrawCenteredText(_renderer, _font, clearedText,
             centerX, centerY + 72.0f, 27.0f, TextColor);
 
-        char scoreText[96] = {};
-        std::snprintf(scoreText, sizeof(scoreText), "FINAL SCORE  %llu",
-            static_cast<unsigned long long>(_game.GetScore()));
-        DrawCenteredText(_renderer, _font, scoreText,
-            centerX, centerY + 29.0f, 31.0f, TextColor);
+        char bestText[96] = {};
+        std::snprintf(bestText, sizeof(bestText), "PERSONAL BEST  %llu",
+            static_cast<unsigned long long>(_record.GetBest()));
+        DrawCenteredText(_renderer, _font, bestText,
+            centerX, centerY + 29.0f, 31.0f, HighlightColor);
+        if (_record.HasStorageError())
+        {
+            DrawCenteredText(_renderer, _font, "RECORD SAVE ERROR",
+                centerX, centerY - 25.0f, 19.0f, HighlightColor);
+        }
 
         const ButtonBounds menu = ResultButton(_app.GetWidth(), _app.GetHeight());
         DrawButton(_renderer, _font, "MAIN MENU", menu,
@@ -247,15 +265,16 @@ namespace
 
         const StageClearReward& reward = _notice.GetReward();
         char title[96] = {};
-        std::snprintf(title, sizeof(title), "STAGE %llu CLEAR!",
+        std::snprintf(title, sizeof(title),
+            reward.newPersonalBest ? "NEW PERSONAL BEST!" : "STAGE %llu CLEAR!",
             static_cast<unsigned long long>(reward.completedStage));
         DrawCenteredText(_renderer, _font, title,
             panelX + panelWidth * 0.5f, panelY + 46.0f, 25.0f,
             { 1.0f, 0.85f, 0.3f, opacity });
 
         char earned[128] = {};
-        std::snprintf(earned, sizeof(earned), "+%llu SCORE    +%.1fs",
-            static_cast<unsigned long long>(reward.earnedPoints),
+        std::snprintf(earned, sizeof(earned), "STAGE %llu    +%.1fs TIME",
+            static_cast<unsigned long long>(reward.completedStage),
             static_cast<double>(reward.grantedTimeSeconds));
         DrawCenteredText(_renderer, _font, earned,
             panelX + panelWidth * 0.5f, panelY + 19.0f, 19.0f,
@@ -264,7 +283,7 @@ namespace
 
     void DrawGameplay(Renderer2D& _renderer, const Font& _font,
         const Application& _app, const GameSession& _game,
-        const PlayerMovementVisual& _visual)
+        const BestStageRecord& _record, const PlayerMovementVisual& _visual)
     {
         const Stage& stage = _game.GetStage();
         const Maze& maze = stage.GetMaze();
@@ -329,13 +348,18 @@ namespace
             static_cast<float>(_app.GetWidth()) * 0.5f,
             labelY, textHeight, TextColor);
 
-        char scoreText[80] = {};
-        std::snprintf(scoreText, sizeof(scoreText), "SCORE %llu",
-            static_cast<unsigned long long>(_game.GetScore()));
-        const float scoreWidth = _renderer.MeasureTextWidth(_font, scoreText, textHeight);
-        _renderer.DrawText(_font, scoreText,
-            static_cast<float>(_app.GetWidth()) - margin - scoreWidth,
+        char bestText[80] = {};
+        std::snprintf(bestText, sizeof(bestText), "BEST %llu",
+            static_cast<unsigned long long>(_record.GetBest()));
+        const float bestWidth = _renderer.MeasureTextWidth(_font, bestText, textHeight);
+        _renderer.DrawText(_font, bestText,
+            static_cast<float>(_app.GetWidth()) - margin - bestWidth,
             labelY, textHeight, TextColor);
+        if (_record.HasStorageError())
+        {
+            _renderer.DrawText(_font, "RECORD SAVE ERROR", margin, 16.0f,
+                18.0f, HighlightColor);
+        }
 
         const float ratio = std::clamp(
             _game.GetRemainingTime() / _game.GetInitialTime(), 0.0f, 1.0f);
@@ -350,7 +374,7 @@ namespace
 static int RunGame(const char* _argv0)
 {
     Application app;
-    if (!app.Initialize())
+    if (!app.Initialize("MazeRunner"))
     {
         return -1;
     }
@@ -372,6 +396,8 @@ static int RunGame(const char* _argv0)
         return -1;
     }
 
+    BestStageRecord bestRecord;
+    bool bestNoticeShownThisRun = false;
     GameFlow flow;
     HeldMovementInput movementInput;
     PlayerMovementVisual movementVisual;
@@ -402,6 +428,7 @@ static int RunGame(const char* _argv0)
             if (IsClicked(app, UpperButton(app.GetWidth(), app.GetHeight())))
             {
                 flow.StartGame();
+                bestNoticeShownThisRun = false;
             }
             else if (IsClicked(app, LowerButton(app.GetWidth(), app.GetHeight())))
             {
@@ -442,7 +469,6 @@ static int RunGame(const char* _argv0)
                 {
                     const GameSession& previousGame = *flow.GetSession();
                     const std::uint64_t previousClears = previousGame.GetCompletedStages();
-                    const std::uint64_t previousScore = previousGame.GetScore();
                     const float previousTime = previousGame.GetRemainingTime();
 
                     flow.TryMove(direction);
@@ -451,10 +477,18 @@ static int RunGame(const char* _argv0)
                     if (currentGame.GetCompletedStages() > previousClears)
                     {
                         // The next maze is already playable. This is visual feedback only.
+                        const bool improvedRecord =
+                            bestRecord.TryUpdate(currentGame.GetCompletedStages());
+                        const bool firstNewBestThisRun =
+                            improvedRecord && !bestNoticeShownThisRun;
+                        if (firstNewBestThisRun)
+                        {
+                            bestNoticeShownThisRun = true;
+                        }
                         stageClearNotice.Show({
                             currentGame.GetCompletedStages(),
-                            currentGame.GetScore() - previousScore,
-                            std::max(0.0f, currentGame.GetRemainingTime() - previousTime)
+                            std::max(0.0f, currentGame.GetRemainingTime() - previousTime),
+                            firstNewBestThisRun
                         });
                         // A new maze is already active; never animate from the old goal.
                         movementVisual.Reset(currentGame.GetStage().GetPlayer().GetPosition());
@@ -519,7 +553,7 @@ static int RunGame(const char* _argv0)
         const ScreenState visibleState = flow.GetVisibleState();
         if (visibleState == ScreenState::MainMenu)
         {
-            DrawMainMenu(renderer, hudFont, app);
+            DrawMainMenu(renderer, hudFont, app, bestRecord);
         }
         else if (visibleState == ScreenState::Paused)
         {
@@ -527,7 +561,7 @@ static int RunGame(const char* _argv0)
         }
         else if (visibleState == ScreenState::Result && flow.GetSession())
         {
-            DrawResult(renderer, hudFont, app, *flow.GetSession());
+            DrawResult(renderer, hudFont, app, *flow.GetSession(), bestRecord);
         }
         else if (visibleState == ScreenState::Countdown
             || visibleState == ScreenState::Go)
@@ -541,7 +575,7 @@ static int RunGame(const char* _argv0)
         }
         else if (visibleState == ScreenState::Playing && flow.GetSession())
         {
-            DrawGameplay(renderer, hudFont, app, *flow.GetSession(), movementVisual);
+            DrawGameplay(renderer, hudFont, app, *flow.GetSession(), bestRecord, movementVisual);
             DrawStageClearNotice(renderer, hudFont, app, stageClearNotice);
         }
 
