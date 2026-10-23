@@ -282,10 +282,12 @@ namespace
         }
         Require(moved && game.GetStage().GetPlayer().GetPosition() != nextStart,
             "Second-stage player must be able to step away from Start");
+        const float expectedTime = std::min(GameTuning::Time::MaximumSeconds,
+            std::max(game.GetRemainingTime(), entryTime));
         Require(game.TryUseItem(ActiveItemType::Recall),
             "Carried Recall must work in the next stage");
         Require(game.GetStage().GetPlayer().GetPosition() == nextStart
-            && std::fabs(game.GetRemainingTime() - entryTime) < 0.001f
+            && std::fabs(game.GetRemainingTime() - expectedTime) < 0.001f
             && game.GetInventory().GetCount(ActiveItemType::Recall) == 0,
             "Carried Recall must restore next stage entry clock and consume one");
     }
