@@ -52,6 +52,8 @@ namespace
     constexpr Color StartColor = { 0.2f, 0.8f, 0.2f, 1.0f };
     constexpr Color GoalColor = { 0.8f, 0.2f, 0.2f, 1.0f };
     constexpr Color PlayerColor = { 0.2f, 0.5f, 1.0f, 1.0f };
+    constexpr Color TimeOrbColor = { 0.12f, 0.91f, 0.90f, 1.0f };
+    constexpr Color TimeOrbCoreColor = { 0.96f, 1.0f, 1.0f, 1.0f };
     constexpr Color TimerBackground = { 0.25f, 0.25f, 0.25f, 1.0f };
     constexpr Color TimerForeground = { 0.25f, 0.75f, 0.3f, 1.0f };
 
@@ -287,6 +289,30 @@ namespace
             { 0.96f, 0.97f, 1.0f, opacity });
     }
 
+    void DrawTimeOrbPickupNotice(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, float _grantedSeconds, float _remainingSeconds)
+    {
+        if (_remainingSeconds <= 0.0f)
+        {
+            return;
+        }
+
+        const float opacity = std::clamp(_remainingSeconds / 0.2f, 0.0f, 1.0f);
+        constexpr float panelWidth = 272.0f;
+        constexpr float panelHeight = 43.0f;
+        const float panelX = (static_cast<float>(_app.GetWidth()) - panelWidth) * 0.5f;
+        const float panelY = static_cast<float>(_app.GetHeight()) - 119.0f;
+        _renderer.DrawRect(panelX, panelY, panelWidth, panelHeight,
+            { 0.07f, 0.17f, 0.19f, opacity * 0.88f });
+
+        char pickupText[96] = {};
+        std::snprintf(pickupText, sizeof(pickupText), "TIME ORB  +%.1fs",
+            static_cast<double>(_grantedSeconds));
+        DrawCenteredText(_renderer, _font, pickupText,
+            panelX + panelWidth * 0.5f, panelY + 11.0f, 23.0f,
+            { 0.12f, 0.95f, 0.92f, opacity });
+    }
+
     void DrawGameplay(Renderer2D& _renderer, const Font& _font,
         const Application& _app, const GameSession& _game,
         const BestStageRecord& _record, const PlayerMovementVisual& _visual)
@@ -332,6 +358,22 @@ namespace
             startX + (endpoints.goal.x * 2 + 1) * tileSize,
             startY + (endpoints.goal.y * 2 + 1) * tileSize,
             tileSize, tileSize, GoalColor);
+
+        // Show the Orb from the start: a contrasting cyan square with a
+        // bright core, visible even on small tiles without a new font asset.
+        if (stage.GetTimeOrbPosition())
+        {
+            const CellPosition orb = *stage.GetTimeOrbPosition();
+            const float orbX = startX + static_cast<float>(orb.x * 2 + 1) * tileSize;
+            const float orbY = startY + static_cast<float>(orb.y * 2 + 1) * tileSize;
+            const float inset = tileSize * 0.08f;
+            _renderer.DrawRect(orbX + inset, orbY + inset,
+                tileSize - inset * 2.0f, tileSize - inset * 2.0f, TimeOrbColor);
+            const float coreSize = tileSize * 0.38f;
+            const float coreInset = (tileSize - coreSize) * 0.5f;
+            _renderer.DrawRect(orbX + coreInset, orbY + coreInset,
+                coreSize, coreSize, TimeOrbCoreColor);
+        }
 
         const float playerSize = tileSize * 0.7f;
         const float playerOffset = (tileSize - playerSize) * 0.5f;
@@ -408,6 +450,8 @@ static int RunGame(const char* _argv0)
     HeldMovementInput movementInput;
     PlayerMovementVisual movementVisual;
     StageClearNotice stageClearNotice;
+    float orbNoticeRemainingSeconds = 0.0f;
+    float orbNoticeGrantedSeconds = 0.0f;
 
     while (app.IsRunning())
     {
@@ -422,10 +466,16 @@ static int RunGame(const char* _argv0)
             movementVisual.Update(app.GetDeltaTime());
         }
         stageClearNotice.Update(app.GetDeltaTime());
+        if (flow.GetState() == ScreenState::Playing)
+        {
+            orbNoticeRemainingSeconds =
+                std::max(0.0f, orbNoticeRemainingSeconds - app.GetDeltaTime());
+        }
         if (flow.GetState() == ScreenState::MainMenu
             || flow.GetState() == ScreenState::Result)
         {
             stageClearNotice.Clear();
+            orbNoticeRemainingSeconds = 0.0f;
         }
 
         if (inputState == ScreenState::MainMenu
@@ -435,6 +485,7 @@ static int RunGame(const char* _argv0)
             {
                 flow.StartGame();
                 bestNoticeShownThisRun = false;
+                orbNoticeRemainingSeconds = 0.0f;
             }
             else if (IsClicked(app, LowerButton(app.GetWidth(), app.GetHeight())))
             {
@@ -480,6 +531,13 @@ static int RunGame(const char* _argv0)
                     flow.TryMove(direction);
 
                     const GameSession& currentGame = *flow.GetSession();
+                    if (currentGame.WasTimeOrbCollectedOnLastMove())
+                    {
+                        orbNoticeGrantedSeconds =
+                            currentGame.GetLastTimeOrbGrantedSeconds();
+                        orbNoticeRemainingSeconds =
+                            GameTuning::TimeOrb::PickupNoticeSeconds;
+                    }
                     if (currentGame.GetCompletedStages() > previousClears)
                     {
                         // The next maze is already playable. This is visual feedback only.
@@ -583,6 +641,8 @@ static int RunGame(const char* _argv0)
         {
             DrawGameplay(renderer, hudFont, app, *flow.GetSession(), bestRecord, movementVisual);
             DrawStageClearNotice(renderer, hudFont, app, stageClearNotice);
+            DrawTimeOrbPickupNotice(renderer, hudFont, app,
+                orbNoticeGrantedSeconds, orbNoticeRemainingSeconds);
         }
 
         const float fadeAlpha = flow.GetFadeAlpha();

@@ -5,6 +5,7 @@
 #include "../player/Player.h"
 
 #include <cstdint>
+#include <optional>
 
 class Stage
 {
@@ -15,6 +16,8 @@ public:
     const Maze& GetMaze() const noexcept;
     const MazeEndpoints& GetEndpoints() const noexcept;
     const Player& GetPlayer() const noexcept;
+    const std::optional<CellPosition>& GetTimeOrbPosition() const noexcept;
+    bool WasTimeOrbCollectedOnLastMove() const noexcept;
 
     bool TryMovePlayer(const CellPosition& _direction);
 
@@ -25,4 +28,6 @@ private:
     Maze m_maze;
     MazeEndpoints m_endpoints;
     Player m_player;
+    std::optional<CellPosition> m_timeOrbPosition;
+    bool m_timeOrbCollectedOnLastMove = false;
 };

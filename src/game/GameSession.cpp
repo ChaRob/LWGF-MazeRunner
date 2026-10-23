@@ -46,7 +46,22 @@ void GameSession::TryMove(const CellPosition& _direction)
         return;
     }
 
-    if (!m_stage.TryMovePlayer(_direction))
+    m_timeOrbCollectedOnLastMove = false;
+    m_lastTimeOrbGrantedSeconds = 0.0f;
+
+    const bool stageCleared = m_stage.TryMovePlayer(_direction);
+    if (m_stage.WasTimeOrbCollectedOnLastMove())
+    {
+        m_timeOrbCollectedOnLastMove = true;
+        const float previousTime = m_remainingTime;
+        m_remainingTime = std::min(GameTuning::Time::MaximumSeconds,
+            m_remainingTime + GameTuning::TimeOrb::RecoverySeconds);
+        m_lastTimeOrbGrantedSeconds = m_remainingTime - previousTime;
+        std::cout << "Time Orb collected! Granted: +"
+                  << m_lastTimeOrbGrantedSeconds << "s\n";
+    }
+
+    if (!stageCleared)
     {
         return;
     }
@@ -97,4 +112,14 @@ float GameSession::GetInitialTime() const noexcept
 std::uint64_t GameSession::GetCompletedStages() const noexcept
 {
     return m_completedStages;
+}
+
+bool GameSession::WasTimeOrbCollectedOnLastMove() const noexcept
+{
+    return m_timeOrbCollectedOnLastMove;
+}
+
+float GameSession::GetLastTimeOrbGrantedSeconds() const noexcept
+{
+    return m_lastTimeOrbGrantedSeconds;
 }
