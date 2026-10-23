@@ -58,7 +58,7 @@ void GameSession::TryMove(const CellPosition& _direction)
             m_remainingTime + GameTuning::TimeOrb::RecoverySeconds);
         m_lastTimeOrbGrantedSeconds = m_remainingTime - previousTime;
         std::cout << "Time Orb collected! Granted: +"
-                  << m_lastTimeOrbGrantedSeconds << "s\\n";
+                  << m_lastTimeOrbGrantedSeconds << "s\n";
     }
 
     if (!stageCleared)
