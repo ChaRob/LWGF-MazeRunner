@@ -10,8 +10,8 @@
 struct StageClearReward
 {
     std::uint64_t completedStage = 0;
-    std::uint64_t earnedPoints = 0;
     float grantedTimeSeconds = 0.0f;
+    bool newPersonalBest = false;
 };
 
 // Presentation-only notice. It never changes the game state or gameplay clock.
