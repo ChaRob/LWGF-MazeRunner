@@ -1,4 +1,5 @@
 #include "GameSession.h"
+#include "GameTuning.h"
 
 #include <algorithm>
 #include <cmath>
@@ -6,21 +7,10 @@
 #include <limits>
 #include <stdexcept>
 
-namespace
-{
-    constexpr float InitialTime = 30.0f;
-    constexpr float MaximumTime = 30.0f;
-    constexpr float BonusSecondsPerCell = 0.20f;
-    // Keep the original speed-score baseline when rebalancing granted game time.
-    constexpr float SpeedScoreBaselineSecondsPerCell = 0.5f;
-    constexpr std::uint64_t BaseScorePerStage = 100;
-    constexpr std::uint64_t ScorePerDistanceCell = 10;
-}
-
 GameSession::GameSession(std::uint32_t _seed)
     : m_random(_seed)
     , m_stage(1, m_random())
-    , m_remainingTime(InitialTime)
+    , m_remainingTime(GameTuning::Time::InitialSeconds)
 {
     std::cout << "Stage 1 started ("
               << m_stage.GetMaze().GetCellWidth() << "x"
@@ -63,17 +53,17 @@ void GameSession::TryMove(const CellPosition& _direction)
     }
 
     const int distance = m_stage.GetEndpoints().shortestDistance;
-    const float timeBonus = static_cast<float>(distance) * BonusSecondsPerCell;
+    const float timeBonus = static_cast<float>(distance) * GameTuning::Time::ClearBonusSecondsPerCell;
 
     // Provisional scoring: reward progress and actual maze path length.
     const float speedScoreBaseline =
-        static_cast<float>(distance) * SpeedScoreBaselineSecondsPerCell;
+        static_cast<float>(distance) * GameTuning::Score::SpeedBaselineSecondsPerCell;
     const float savedSeconds = std::max(0.0f, speedScoreBaseline - m_stageElapsedTime);
     const std::uint64_t speedPoints =
-        static_cast<std::uint64_t>(std::floor(savedSeconds * 10.0f));
+        static_cast<std::uint64_t>(std::floor(savedSeconds * GameTuning::Score::SpeedPointsPerSecondSaved));
     const std::uint64_t points =
-        BaseScorePerStage +
-        static_cast<std::uint64_t>(distance) * ScorePerDistanceCell +
+        GameTuning::Score::BasePointsPerStage +
+        static_cast<std::uint64_t>(distance) * GameTuning::Score::DistancePointsPerCell +
         speedPoints;
 
     if (m_score > std::numeric_limits<std::uint64_t>::max() - points)
@@ -86,7 +76,7 @@ void GameSession::TryMove(const CellPosition& _direction)
     }
 
     ++m_completedStages;
-    m_remainingTime = std::min(MaximumTime, m_remainingTime + timeBonus);
+    m_remainingTime = std::min(GameTuning::Time::MaximumSeconds, m_remainingTime + timeBonus);
 
     std::cout << "Stage " << m_stage.GetNumber()
               << " clear! Distance: " << distance
@@ -125,7 +115,7 @@ float GameSession::GetRemainingTime() const noexcept
 
 float GameSession::GetInitialTime() const noexcept
 {
-    return InitialTime;
+    return GameTuning::Time::InitialSeconds;
 }
 
 std::uint64_t GameSession::GetScore() const noexcept
