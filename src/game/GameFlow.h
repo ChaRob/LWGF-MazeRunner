@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameSession.h"
+#include "GameTuning.h"
 
 #include <memory>
 #include <random>
@@ -43,9 +44,9 @@ private:
         MainMenu
     };
 
-    static constexpr float FadeDuration = 0.35f;
-    static constexpr float CountdownDuration = 3.0f;
-    static constexpr float GoDuration = 0.4f;
+    static constexpr float FadeDuration = GameTuning::Transition::FadeSeconds;
+    static constexpr float CountdownDuration = static_cast<float>(GameTuning::Transition::CountdownSeconds);
+    static constexpr float GoDuration = GameTuning::Transition::GoSeconds;
 
     std::mt19937 m_random;
     std::unique_ptr<GameSession> m_session;
