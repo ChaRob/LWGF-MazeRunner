@@ -249,6 +249,16 @@ namespace
         notice.Show({ 8, 500, 1.0f });
         notice.Clear();
         Require(!notice.IsVisible(), "Returning to the menu must dismiss the notice");
+
+        // The notice exists independently of the session and cannot pause the clock.
+        GameSession runningGame(6789u);
+        const float timeBefore = runningGame.GetRemainingTime();
+        notice.Show({ 1, 100, 1.0f });
+        runningGame.Update(0.5f);
+        notice.Update(0.5f);
+        Require(runningGame.GetStatus() == GameStatus::Playing
+            && std::fabs(runningGame.GetRemainingTime() - (timeBefore - 0.5f)) < 0.001f,
+            "Showing a clear notice must not stop the gameplay timer");
     }
 
     void TestHeldMovement()
