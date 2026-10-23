@@ -24,6 +24,8 @@ public:
     float GetRemainingTime() const noexcept;
     float GetInitialTime() const noexcept;
     std::uint64_t GetCompletedStages() const noexcept;
+    bool WasTimeOrbCollectedOnLastMove() const noexcept;
+    float GetLastTimeOrbGrantedSeconds() const noexcept;
 
 private:
     std::mt19937 m_random;
@@ -31,4 +33,6 @@ private:
     GameStatus m_status = GameStatus::Playing;
     float m_remainingTime = 30.0f;
     std::uint64_t m_completedStages = 0;
+    bool m_timeOrbCollectedOnLastMove = false;
+    float m_lastTimeOrbGrantedSeconds = 0.0f;
 };
