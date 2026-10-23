@@ -110,7 +110,8 @@ namespace
 
     void TestGameSessionTimeBonus()
     {
-        constexpr float ElapsedSeconds = 4.0f;
+        // Use enough elapsed time to avoid the 30-second cap masking the award.
+        constexpr float ElapsedSeconds = 8.0f;
         constexpr float BonusSecondsPerCell = 0.20f;
         constexpr float SpeedScoreBaselineSecondsPerCell = 0.5f;
 
