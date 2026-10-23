@@ -223,32 +223,32 @@ namespace
         Require(input.Update(0.0f, up) == CellPosition{ 0, 1 },
             "First keypress must move immediately");
         Require(input.Update(0.07f, up) == CellPosition{ 0, 0 },
-            "Hold must not repeat before 0.18 seconds");
-        Require(input.Update(0.12f, up) == CellPosition{ 0, 1 },
-            "Hold must repeat after 0.18 seconds");
+            "Hold must not repeat before 0.15 seconds");
+        Require(input.Update(0.09f, up) == CellPosition{ 0, 1 },
+            "Hold must repeat after 0.15 seconds");
 
         Require(input.Update(0.0f, upAndRight) == CellPosition{ 0, 0 },
             "Direction change must respect shared cooldown");
-        Require(input.Update(0.19f, upAndRight) == CellPosition{ 1, 0 },
+        Require(input.Update(0.16f, upAndRight) == CellPosition{ 1, 0 },
             "Newest direction should move when shared cooldown expires");
 
         Require(input.Update(0.0f, up) == CellPosition{ 0, 0 },
             "Returning to a previous direction must respect cooldown");
-        Require(input.Update(0.19f, up) == CellPosition{ 0, 1 },
+        Require(input.Update(0.16f, up) == CellPosition{ 0, 1 },
             "Previous held direction should resume after cooldown");
 
         Require(input.Update(0.0f, none) == CellPosition{ 0, 0 },
             "Releasing all keys must stop immediately");
         Require(input.Update(0.0f, right) == CellPosition{ 0, 0 },
             "Re-pressing a key must not bypass the shared cooldown");
-        Require(input.Update(0.19f, right) == CellPosition{ 1, 0 },
+        Require(input.Update(0.16f, right) == CellPosition{ 1, 0 },
             "Re-pressed key must move once interval elapses");
 
         Require(input.Update(0.5f, right) == CellPosition{ 1, 0 },
             "Long frame must issue at most one step");
         Require(input.Update(0.0f, right) == CellPosition{ 0, 0 },
             "Long frame must not queue extra movement");
-        Require(input.Update(0.19f, none) == CellPosition{ 0, 0 },
+        Require(input.Update(0.16f, none) == CellPosition{ 0, 0 },
             "Idle time must not cause movement");
         Require(input.Update(0.0f, up) == CellPosition{ 0, 1 },
             "First press after enough idle time must move immediately");
