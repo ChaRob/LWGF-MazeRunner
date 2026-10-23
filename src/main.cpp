@@ -6,6 +6,7 @@
 #include "game/GameTuning.h"
 #include "game/StageClearNotice.h"
 #include "game/player/HeldMovementInput.h"
+#include "game/player/PlayerMovementVisual.h"
 
 #include <algorithm>
 #include <cmath>
@@ -262,12 +263,13 @@ namespace
     }
 
     void DrawGameplay(Renderer2D& _renderer, const Font& _font,
-        const Application& _app, const GameSession& _game)
+        const Application& _app, const GameSession& _game,
+        const PlayerMovementVisual& _visual)
     {
         const Stage& stage = _game.GetStage();
         const Maze& maze = stage.GetMaze();
         const MazeEndpoints& endpoints = stage.GetEndpoints();
-        const CellPosition& playerPosition = stage.GetPlayer().GetPosition();
+        const VisualCellPosition playerPosition = _visual.GetPosition();
 
         const float margin = 32.0f;
         const float hudHeight = 86.0f;
@@ -372,6 +374,7 @@ static int RunGame(const char* _argv0)
 
     GameFlow flow;
     HeldMovementInput movementInput;
+    PlayerMovementVisual movementVisual;
     StageClearNotice stageClearNotice;
 
     while (app.IsRunning())
@@ -381,6 +384,11 @@ static int RunGame(const char* _argv0)
         const ScreenState inputState = flow.GetState();
         // Update gameplay before input, so timeout wins over moving onto Goal.
         flow.Update(app.GetDeltaTime());
+        // Rendering advances continuously between logical steps.
+        if (inputState == ScreenState::Playing && flow.GetState() == ScreenState::Playing)
+        {
+            movementVisual.Update(app.GetDeltaTime());
+        }
         stageClearNotice.Update(app.GetDeltaTime());
         if (flow.GetState() == ScreenState::MainMenu
             || flow.GetState() == ScreenState::Result)
@@ -417,8 +425,18 @@ static int RunGame(const char* _argv0)
                     app.IsKeyDown(Key::RIGHT)
                 };
 
+                const Stage& activeStage = flow.GetSession()->GetStage();
+                const CellPosition currentPosition = activeStage.GetPlayer().GetPosition();
+                const Maze& maze = activeStage.GetMaze();
+                const MovementAvailability available =
+                {
+                    maze.CanMove(currentPosition, { currentPosition.x, currentPosition.y + 1 }),
+                    maze.CanMove(currentPosition, { currentPosition.x, currentPosition.y - 1 }),
+                    maze.CanMove(currentPosition, { currentPosition.x - 1, currentPosition.y }),
+                    maze.CanMove(currentPosition, { currentPosition.x + 1, currentPosition.y })
+                };
                 const CellPosition direction =
-                    movementInput.Update(app.GetDeltaTime(), buttons);
+                    movementInput.Update(app.GetDeltaTime(), buttons, available);
 
                 if (direction != CellPosition{ 0, 0 })
                 {
@@ -438,8 +456,19 @@ static int RunGame(const char* _argv0)
                             currentGame.GetScore() - previousScore,
                             std::max(0.0f, currentGame.GetRemainingTime() - previousTime)
                         });
+                        // A new maze is already active; never animate from the old goal.
+                        movementVisual.Reset(currentGame.GetStage().GetPlayer().GetPosition());
                         // Holding a direction must not move into the next maze.
                         movementInput.RequireRelease();
+                    }
+                    else
+                    {
+                        const CellPosition nextPosition =
+                            currentGame.GetStage().GetPlayer().GetPosition();
+                        if (nextPosition != currentPosition)
+                        {
+                            movementVisual.BeginMove(currentPosition, nextPosition);
+                        }
                     }
                 }
             }
@@ -471,6 +500,15 @@ static int RunGame(const char* _argv0)
         {
             // Pause, result, fade and countdown all require a fresh key release.
             movementInput.RequireRelease();
+            // Pause / countdown / restart must never retain an in-flight animation.
+            if (flow.GetSession())
+            {
+                movementVisual.Reset(flow.GetSession()->GetStage().GetPlayer().GetPosition());
+            }
+            else
+            {
+                movementVisual.Reset({ 0, 0 });
+            }
         }
 
         renderer.BeginFrame();
@@ -503,7 +541,7 @@ static int RunGame(const char* _argv0)
         }
         else if (visibleState == ScreenState::Playing && flow.GetSession())
         {
-            DrawGameplay(renderer, hudFont, app, *flow.GetSession());
+            DrawGameplay(renderer, hudFont, app, *flow.GetSession(), movementVisual);
             DrawStageClearNotice(renderer, hudFont, app, stageClearNotice);
         }
 
