@@ -30,6 +30,7 @@ public:
     void Resume();
     void ReturnToMainMenu();
     void TryMove(const CellPosition& _direction);
+    bool TryUseItem(ActiveItemType _item);
 
     ScreenState GetState() const noexcept;
     ScreenState GetVisibleState() const noexcept;
