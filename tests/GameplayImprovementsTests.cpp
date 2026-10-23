@@ -1,6 +1,7 @@
 #include "../src/game/maze/MazeGenerator.h"
 #include "../src/game/maze/MazeEndpointGenerator.h"
 #include "../src/game/player/HeldMovementInput.h"
+#include "../src/game/GameSession.h"
 
 #include <algorithm>
 #include <array>
@@ -107,6 +108,107 @@ namespace
         }
     }
 
+    void TestGameSessionTimeBonus()
+    {
+        constexpr float ElapsedSeconds = 4.0f;
+        constexpr float BonusSecondsPerCell = 0.1f;
+        constexpr float SpeedScoreBaselineSecondsPerCell = 0.5f;
+
+        GameSession game(12345u);
+        const Stage& stage = game.GetStage();
+        const Maze& maze = stage.GetMaze();
+        const MazeEndpoints& endpoints = stage.GetEndpoints();
+        const int width = maze.GetCellWidth();
+
+        const auto index = [width](const CellPosition& _position)
+        {
+            return _position.y * width + _position.x;
+        };
+
+        std::vector<int> parents(
+            static_cast<std::size_t>(width * maze.GetCellHeight()), -1);
+        std::queue<CellPosition> pending;
+
+        parents[static_cast<std::size_t>(index(endpoints.start))] =
+            index(endpoints.start);
+        pending.push(endpoints.start);
+
+        while (!pending.empty())
+        {
+            const CellPosition current = pending.front();
+            pending.pop();
+
+            for (const CellPosition& direction : Directions)
+            {
+                const CellPosition next =
+                {
+                    current.x + direction.x,
+                    current.y + direction.y
+                };
+                if (!maze.IsCellInside(next) || !maze.CanMove(current, next))
+                {
+                    continue;
+                }
+
+                const std::size_t nextIndex =
+                    static_cast<std::size_t>(index(next));
+                if (parents[nextIndex] != -1)
+                {
+                    continue;
+                }
+
+                parents[nextIndex] = index(current);
+                pending.push(next);
+            }
+        }
+
+        const int goalIndex = index(endpoints.goal);
+        const int startIndex = index(endpoints.start);
+        Require(parents[static_cast<std::size_t>(goalIndex)] != -1,
+            "Goal must be reachable from Start");
+
+        std::vector<CellPosition> path;
+        int currentIndex = goalIndex;
+        while (currentIndex != startIndex)
+        {
+            const int previousIndex = parents[static_cast<std::size_t>(currentIndex)];
+            Require(previousIndex != -1, "Path reconstruction failed");
+            path.push_back(
+            {
+                currentIndex % width - previousIndex % width,
+                currentIndex / width - previousIndex / width
+            });
+            currentIndex = previousIndex;
+        }
+        std::reverse(path.begin(), path.end());
+        Require(static_cast<int>(path.size()) == endpoints.shortestDistance,
+            "Path length must match the stage shortest distance");
+
+        game.Update(ElapsedSeconds);
+        for (const CellPosition& direction : path)
+        {
+            game.TryMove(direction);
+        }
+
+        Require(game.GetCompletedStages() == 1, "Path should clear Stage 1");
+        Require(game.GetStage().GetNumber() == 2, "Goal should start Stage 2");
+
+        const float expectedRemainingTime =
+            game.GetInitialTime() - ElapsedSeconds
+            + static_cast<float>(path.size()) * BonusSecondsPerCell;
+        Require(std::fabs(game.GetRemainingTime() - expectedRemainingTime) < 0.001f,
+            "Clear bonus should grant only 0.1 seconds per cell");
+
+        const float speedScoreSeconds = std::max(0.0f,
+            static_cast<float>(path.size()) * SpeedScoreBaselineSecondsPerCell
+            - ElapsedSeconds);
+        const std::uint64_t expectedScore =
+            100 + static_cast<std::uint64_t>(path.size()) * 10
+            + static_cast<std::uint64_t>(std::floor(speedScoreSeconds * 10.0f));
+        Require(game.GetScore() == expectedScore,
+            "Time bonus reduction must not alter existing speed-score formula");
+    }
+
     void TestHeldMovement()
     {
         HeldMovementInput input;
@@ -156,6 +258,7 @@ int main()
     {
         TestDeadEndGoals();
         TestHeldMovement();
+        TestGameSessionTimeBonus();
         std::cout << "Gameplay improvement tests passed.\n";
         return 0;
     }
