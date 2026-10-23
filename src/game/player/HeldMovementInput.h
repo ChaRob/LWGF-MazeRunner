@@ -19,7 +19,7 @@ struct MovementButtons
 class HeldMovementInput
 {
 public:
-    // First move is immediate. All subsequent moves share a 0.18 second interval, even after direction changes.
+    // First move is immediate. All subsequent moves share a 0.15 second interval, even after direction changes.
     CellPosition Update(float _deltaTime, const MovementButtons& _buttons);
 
     // Ignore all held direction keys until they have ALL been released.
@@ -27,7 +27,7 @@ public:
     void RequireRelease() noexcept;
 
 private:
-    static constexpr float RepeatInterval = 0.18f;
+    static constexpr float RepeatInterval = 0.15f;
 
     MovementButtons m_previous;
     CellPosition m_activeDirection = { 0, 0 };
