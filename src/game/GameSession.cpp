@@ -11,6 +11,7 @@ GameSession::GameSession(std::uint32_t _seed)
     : m_random(_seed)
     , m_stage(1, m_random())
     , m_remainingTime(GameTuning::Time::InitialSeconds)
+    , m_stageEntryTime(GameTuning::Time::InitialSeconds)
 {
     std::cout << "Stage 1 started ("
               << m_stage.GetMaze().GetCellWidth() << "x"
@@ -47,9 +48,20 @@ void GameSession::TryMove(const CellPosition& _direction)
     }
 
     m_timeOrbCollectedOnLastMove = false;
+    m_recallCollectedOnLastMove = false;
     m_lastTimeOrbGrantedSeconds = 0.0f;
 
+    const CellPosition priorPosition = m_stage.GetPlayer().GetPosition();
     const bool stageCleared = m_stage.TryMovePlayer(_direction);
+    const CellPosition currentPosition = m_stage.GetPlayer().GetPosition();
+    if (currentPosition != priorPosition && m_stage.GetRecallPosition()
+        && currentPosition == *m_stage.GetRecallPosition()
+        && m_inventory.TryAdd(ActiveItemType::Recall))
+    {
+        m_recallCollectedOnLastMove = m_stage.TryCollectRecallAtPlayerPosition();
+        std::cout << "Recall collected! Inventory: "
+                  << m_inventory.GetCount(ActiveItemType::Recall) << '\\n';
+    }
     if (m_stage.WasTimeOrbCollectedOnLastMove())
     {
         m_timeOrbCollectedOnLastMove = true;
@@ -83,10 +95,32 @@ void GameSession::TryMove(const CellPosition& _direction)
     }
 
     m_stage = Stage(m_stage.GetNumber() + 1, m_random());
+    m_stageEntryTime = m_remainingTime;
 
     std::cout << "Stage " << m_stage.GetNumber()
               << " started (" << m_stage.GetMaze().GetCellWidth()
               << "x" << m_stage.GetMaze().GetCellHeight() << ")\n";
+}
+
+bool GameSession::TryUseItem(ActiveItemType _item)
+{
+    if (m_status != GameStatus::Playing || _item != ActiveItemType::Recall
+        || m_inventory.GetCount(_item) == 0
+        || !m_stage.RecallPlayerToStart())
+    {
+        return false;
+    }
+
+    // Only position and time rewind: maze, collected pickups and consumed
+    // inventory are NOT reset. No benefit if the current clock is higher.
+    m_inventory.TryConsume(_item);
+    m_remainingTime = std::min(GameTuning::Time::MaximumSeconds,
+        std::max(m_remainingTime, m_stageEntryTime));
+    m_timeOrbCollectedOnLastMove = false;
+    m_recallCollectedOnLastMove = false;
+    m_lastTimeOrbGrantedSeconds = 0.0f;
+    std::cout << "Recall used! Time: " << m_remainingTime << "s\n";
+    return true;
 }
 
 const Stage& GameSession::GetStage() const noexcept
@@ -122,4 +156,19 @@ bool GameSession::WasTimeOrbCollectedOnLastMove() const noexcept
 float GameSession::GetLastTimeOrbGrantedSeconds() const noexcept
 {
     return m_lastTimeOrbGrantedSeconds;
+}
+
+bool GameSession::WasRecallCollectedOnLastMove() const noexcept
+{
+    return m_recallCollectedOnLastMove;
+}
+
+const ActiveItemInventory& GameSession::GetInventory() const noexcept
+{
+    return m_inventory;
+}
+
+float GameSession::GetStageEntryTime() const noexcept
+{
+    return m_stageEntryTime;
 }
