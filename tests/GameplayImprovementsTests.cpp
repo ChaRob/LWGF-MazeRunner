@@ -111,7 +111,7 @@ namespace
     void TestGameSessionTimeBonus()
     {
         constexpr float ElapsedSeconds = 4.0f;
-        constexpr float BonusSecondsPerCell = 0.1f;
+        constexpr float BonusSecondsPerCell = 0.15f;
         constexpr float SpeedScoreBaselineSecondsPerCell = 0.5f;
 
         GameSession game(12345u);
@@ -197,7 +197,7 @@ namespace
             game.GetInitialTime() - ElapsedSeconds
             + static_cast<float>(path.size()) * BonusSecondsPerCell;
         Require(std::fabs(game.GetRemainingTime() - expectedRemainingTime) < 0.001f,
-            "Clear bonus should grant only 0.1 seconds per cell");
+            "Clear bonus should grant only 0.15 seconds per cell");
 
         const float speedScoreSeconds = std::max(0.0f,
             static_cast<float>(path.size()) * SpeedScoreBaselineSecondsPerCell
