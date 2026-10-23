@@ -12,6 +12,7 @@ add_subdirectory(
 
 set(MAZERUNNER_GAME_SOURCES
     src/game/GameTuning.h
+    src/game/StageClearNotice.h
     src/game/GameSession.cpp
     src/game/GameSession.h
     src/game/GameFlow.cpp
