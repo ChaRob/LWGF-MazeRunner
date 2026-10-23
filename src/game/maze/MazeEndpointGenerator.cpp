@@ -139,6 +139,28 @@ MazeEndpoints MazeEndpointGenerator::Generate(const Maze& _maze, std::uint32_t _
                 continue;
             }
 
+            // Place the Goal at a true dead end, never in a passing corridor.
+            // A dead-end logical cell has exactly one traversable neighbor.
+            int openNeighbors = 0;
+            for (const CellPosition& direction : Directions)
+            {
+                const CellPosition neighbor =
+                {
+                    position.x + direction.x,
+                    position.y + direction.y
+                };
+
+                if (_maze.IsCellInside(neighbor) && _maze.CanMove(position, neighbor))
+                {
+                    ++openNeighbors;
+                }
+            }
+
+            if (openNeighbors != 1)
+            {
+                continue;
+            }
+
             goalCandidates.push_back(position);
         }
     }

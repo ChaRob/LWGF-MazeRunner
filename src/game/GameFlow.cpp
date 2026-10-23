@@ -59,6 +59,16 @@ void GameFlow::Update(float _deltaTime)
         if (m_countdownRemaining <= 0.0f)
         {
             m_countdownRemaining = 0.0f;
+            m_goRemaining = GoDuration;
+            m_state = ScreenState::Go;
+        }
+        break;
+
+    case ScreenState::Go:
+        m_goRemaining -= _deltaTime;
+        if (m_goRemaining <= 0.0f)
+        {
+            m_goRemaining = 0.0f;
             m_state = ScreenState::Playing;
         }
         break;
@@ -147,7 +157,7 @@ ScreenState GameFlow::GetVisibleState() const noexcept
     if (m_state == ScreenState::FadingIn)
     {
         return m_destination == Destination::NewGame
-            ? ScreenState::Playing
+            ? ScreenState::Countdown
             : ScreenState::MainMenu;
     }
 
@@ -182,5 +192,6 @@ int GameFlow::GetCountdownNumber() const noexcept
         return 0;
     }
 
-    return std::clamp(static_cast<int>(std::ceil(m_countdownRemaining)), 1, 3);
+    return std::clamp(static_cast<int>(std::ceil(m_countdownRemaining)),
+        1, GameTuning::Transition::CountdownSeconds);
 }

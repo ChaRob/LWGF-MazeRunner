@@ -1,4 +1,5 @@
 #include "Stage.h"
+#include "../GameTuning.h"
 
 #include "../maze/MazeEndpointGenerator.h"
 #include "../maze/MazeGenerator.h"
@@ -7,7 +8,6 @@
 
 namespace
 {
-    constexpr float GoalMinimumDistanceRatio = 0.9f;
     constexpr std::uint32_t EndpointSeedOffset = 0x9E3779B9u;
 }
 
@@ -18,13 +18,21 @@ int Stage::GetCellSize(std::uint64_t _stageNumber)
         throw std::invalid_argument("Stage number must be positive.");
     }
 
-    // Stage 1-10: 5x5, 11-20: 7x7, ..., 101+: 25x25.
-    if (_stageNumber >= 101)
+    // Work in tiers before converting to int to avoid overflow for high stage numbers.
+    const std::uint64_t tier =
+        (_stageNumber - 1) / GameTuning::Maze::StagesPerTier;
+    const std::uint64_t maximumTier =
+        static_cast<std::uint64_t>(
+            (GameTuning::Maze::MaximumCellSize - GameTuning::Maze::InitialCellSize)
+            / GameTuning::Maze::CellGrowthPerTier);
+
+    if (tier >= maximumTier)
     {
-        return 25;
+        return GameTuning::Maze::MaximumCellSize;
     }
 
-    return 5 + static_cast<int>((_stageNumber - 1) / 10) * 2;
+    return GameTuning::Maze::InitialCellSize
+        + static_cast<int>(tier) * GameTuning::Maze::CellGrowthPerTier;
 }
 
 Stage::Stage(std::uint64_t _number, std::uint32_t _seed)
@@ -36,7 +44,7 @@ Stage::Stage(std::uint64_t _number, std::uint32_t _seed)
     , m_endpoints(MazeEndpointGenerator::Generate(
         m_maze,
         _seed ^ EndpointSeedOffset,
-        GoalMinimumDistanceRatio))
+        GameTuning::Maze::GoalMinimumDistanceRatio))
     , m_player(m_endpoints.start)
 {
 }

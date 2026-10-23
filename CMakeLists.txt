@@ -11,6 +11,7 @@ add_subdirectory(
 )
 
 set(MAZERUNNER_GAME_SOURCES
+    src/game/GameTuning.h
     src/game/GameSession.cpp
     src/game/GameSession.h
     src/game/GameFlow.cpp
@@ -25,6 +26,8 @@ set(MAZERUNNER_GAME_SOURCES
     src/game/maze/MazeEndpointGenerator.h
     src/game/player/Player.cpp
     src/game/player/Player.h
+    src/game/player/HeldMovementInput.cpp
+    src/game/player/HeldMovementInput.h
     src/game/stage/Stage.cpp
     src/game/stage/Stage.h
 )
@@ -71,4 +74,11 @@ if(BUILD_TESTING)
     )
     target_compile_features(MazeRunnerFlowTests PRIVATE cxx_std_20)
     add_test(NAME MazeRunnerFlowTests COMMAND MazeRunnerFlowTests)
+
+    add_executable(MazeRunnerGameplayTests
+        tests/GameplayImprovementsTests.cpp
+        ${MAZERUNNER_GAME_SOURCES}
+    )
+    target_compile_features(MazeRunnerGameplayTests PRIVATE cxx_std_20)
+    add_test(NAME MazeRunnerGameplayTests COMMAND MazeRunnerGameplayTests)
 endif()
