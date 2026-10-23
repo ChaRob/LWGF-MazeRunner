@@ -240,6 +240,56 @@ namespace
             "Spent items stay spent between stages");
     }
 
+    void TestCarryAndUseOnFollowingStage()
+    {
+        GameSession game(FindSessionSeed(false));
+        const Maze& maze = game.GetStage().GetMaze();
+        const CellPosition start = game.GetStage().GetEndpoints().start;
+        const CellPosition pickup = *game.GetStage().GetRecallPosition();
+        const CellPosition goal = game.GetStage().GetEndpoints().goal;
+
+        Walk(game, FindPath(maze, start, pickup));
+        Require(game.GetInventory().GetCount(ActiveItemType::Recall) == 1,
+            "Collected Recall must enter session inventory");
+        game.Update(15.0f);
+        Walk(game, FindPath(maze, pickup, goal));
+
+        Require(game.GetCompletedStages() == 1 && game.GetStage().GetNumber() == 2,
+            "Stage 1 should advance normally with one unused Recall");
+        Require(game.GetInventory().GetCount(ActiveItemType::Recall) == 1,
+            "Unused Recall must carry into the next stage");
+        const CellPosition nextStart = game.GetStage().GetEndpoints().start;
+        const float entryTime = game.GetStageEntryTime();
+        Require(std::fabs(entryTime - game.GetRemainingTime()) < 0.001f,
+            "Stage entry clock should be snapshotted after previous stage bonus");
+        Require(!game.TryUseItem(ActiveItemType::Recall)
+            && game.GetInventory().GetCount(ActiveItemType::Recall) == 1,
+            "Recall must not be consumed when standing at new stage Start");
+
+        game.Update(2.0f);
+        const Maze& secondMaze = game.GetStage().GetMaze();
+        bool moved = false;
+        for (const CellPosition direction : Directions)
+        {
+            if (!secondMaze.CanMove(nextStart,
+                { nextStart.x + direction.x, nextStart.y + direction.y }))
+            {
+                continue;
+            }
+            game.TryMove(direction);
+            moved = true;
+            break;
+        }
+        Require(moved && game.GetStage().GetPlayer().GetPosition() != nextStart,
+            "Second-stage player must be able to step away from Start");
+        Require(game.TryUseItem(ActiveItemType::Recall),
+            "Carried Recall must work in the next stage");
+        Require(game.GetStage().GetPlayer().GetPosition() == nextStart
+            && std::fabs(game.GetRemainingTime() - entryTime) < 0.001f
+            && game.GetInventory().GetCount(ActiveItemType::Recall) == 0,
+            "Carried Recall must restore next stage entry clock and consume one");
+    }
+
     void TestTimeOrbDoesNotDuplicateOnRewind()
     {
         GameSession game(FindSessionSeed(true));
@@ -309,6 +359,7 @@ int main()
         TestInventoryCaps();
         TestSpawnRatesAndPlacement();
         TestPickupRecallRewindAndCarry();
+        TestCarryAndUseOnFollowingStage();
         TestTimeOrbDoesNotDuplicateOnRewind();
         TestNoUseAtStartOrAfterTimeout();
         TestFlowStateGate();
