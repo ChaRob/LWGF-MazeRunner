@@ -54,6 +54,8 @@ namespace
     constexpr Color PlayerColor = { 0.2f, 0.5f, 1.0f, 1.0f };
     constexpr Color TimeOrbColor = { 0.12f, 0.91f, 0.90f, 1.0f };
     constexpr Color TimeOrbCoreColor = { 0.96f, 1.0f, 1.0f, 1.0f };
+    constexpr Color RecallColor = { 0.72f, 0.39f, 0.96f, 1.0f };
+    constexpr Color RecallCoreColor = { 1.0f, 0.90f, 1.0f, 1.0f };
     constexpr Color TimerBackground = { 0.25f, 0.25f, 0.25f, 1.0f };
     constexpr Color TimerForeground = { 0.25f, 0.75f, 0.3f, 1.0f };
 
@@ -313,6 +315,25 @@ namespace
             { 0.12f, 0.95f, 0.92f, opacity });
     }
 
+    void DrawRecallNotice(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, std::string_view _message, float _remainingSeconds)
+    {
+        if (_remainingSeconds <= 0.0f)
+        {
+            return;
+        }
+        const float opacity = std::clamp(_remainingSeconds / 0.2f, 0.0f, 1.0f);
+        constexpr float panelWidth = 260.0f;
+        constexpr float panelHeight = 43.0f;
+        const float panelX = (static_cast<float>(_app.GetWidth()) - panelWidth) * 0.5f;
+        const float panelY = static_cast<float>(_app.GetHeight()) - 169.0f;
+        _renderer.DrawRect(panelX, panelY, panelWidth, panelHeight,
+            { 0.19f, 0.08f, 0.24f, opacity * 0.89f });
+        DrawCenteredText(_renderer, _font, _message,
+            panelX + panelWidth * 0.5f, panelY + 11.0f, 23.0f,
+            { 0.94f, 0.74f, 1.0f, opacity });
+    }
+
     void DrawGameplay(Renderer2D& _renderer, const Font& _font,
         const Application& _app, const GameSession& _game,
         const BestStageRecord& _record, const PlayerMovementVisual& _visual)
@@ -375,12 +396,36 @@ namespace
                 coreSize, coreSize, TimeOrbCoreColor);
         }
 
+        // Recall uses a distinct violet marker and remains visible from spawn.
+        if (stage.GetRecallPosition())
+        {
+            const CellPosition recall = *stage.GetRecallPosition();
+            const float itemX = startX + static_cast<float>(recall.x * 2 + 1) * tileSize;
+            const float itemY = startY + static_cast<float>(recall.y * 2 + 1) * tileSize;
+            const float inset = tileSize * 0.08f;
+            _renderer.DrawRect(itemX + inset, itemY + inset,
+                tileSize - inset * 2.0f, tileSize - inset * 2.0f, RecallColor);
+            const float coreSize = tileSize * 0.35f;
+            const float coreInset = (tileSize - coreSize) * 0.5f;
+            _renderer.DrawRect(itemX + coreInset, itemY + coreInset,
+                coreSize, coreSize, RecallCoreColor);
+        }
+
         const float playerSize = tileSize * 0.7f;
         const float playerOffset = (tileSize - playerSize) * 0.5f;
         _renderer.DrawRect(
             startX + (playerPosition.x * 2 + 1) * tileSize + playerOffset,
             startY + (playerPosition.y * 2 + 1) * tileSize + playerOffset,
             playerSize, playerSize, PlayerColor);
+
+        const int recallCount =
+            _game.GetInventory().GetCount(ActiveItemType::Recall);
+        char recallHud[96] = {};
+        std::snprintf(recallHud, sizeof(recallHud), "SPACE  RECALL %d/%d",
+            recallCount, ActiveItemInventory::GetCapacity(ActiveItemType::Recall));
+        _renderer.DrawText(_font, recallHud,
+            margin, static_cast<float>(_app.GetHeight()) - 96.0f,
+            19.0f, RecallColor);
 
         const float labelY = static_cast<float>(_app.GetHeight()) - 40.0f;
         const float textHeight = 28.0f;
@@ -452,6 +497,8 @@ static int RunGame(const char* _argv0)
     StageClearNotice stageClearNotice;
     float orbNoticeRemainingSeconds = 0.0f;
     float orbNoticeGrantedSeconds = 0.0f;
+    float recallNoticeRemainingSeconds = 0.0f;
+    std::string recallNoticeText;
 
     while (app.IsRunning())
     {
@@ -470,12 +517,15 @@ static int RunGame(const char* _argv0)
         {
             orbNoticeRemainingSeconds =
                 std::max(0.0f, orbNoticeRemainingSeconds - app.GetDeltaTime());
+            recallNoticeRemainingSeconds =
+                std::max(0.0f, recallNoticeRemainingSeconds - app.GetDeltaTime());
         }
         if (flow.GetState() == ScreenState::MainMenu
             || flow.GetState() == ScreenState::Result)
         {
             stageClearNotice.Clear();
             orbNoticeRemainingSeconds = 0.0f;
+            recallNoticeRemainingSeconds = 0.0f;
         }
 
         if (inputState == ScreenState::MainMenu
@@ -486,6 +536,7 @@ static int RunGame(const char* _argv0)
                 flow.StartGame();
                 bestNoticeShownThisRun = false;
                 orbNoticeRemainingSeconds = 0.0f;
+                recallNoticeRemainingSeconds = 0.0f;
             }
             else if (IsClicked(app, LowerButton(app.GetWidth(), app.GetHeight())))
             {
@@ -498,6 +549,16 @@ static int RunGame(const char* _argv0)
             if (app.IsKeyPressed(Key::ESCAPE))
             {
                 flow.Pause();
+            }
+            else if (app.IsKeyPressed(Key::SPACE)
+                && flow.TryUseItem(ActiveItemType::Recall))
+            {
+                // Recall resets logical position without walking the maze.
+                // Reset visual interpolation and require fresh movement input.
+                movementVisual.Reset(flow.GetSession()->GetStage().GetPlayer().GetPosition());
+                movementInput.RequireRelease();
+                recallNoticeText = "RECALL USED";
+                recallNoticeRemainingSeconds = 1.0f;
             }
             else
             {
@@ -531,6 +592,11 @@ static int RunGame(const char* _argv0)
                     flow.TryMove(direction);
 
                     const GameSession& currentGame = *flow.GetSession();
+                    if (currentGame.WasRecallCollectedOnLastMove())
+                    {
+                        recallNoticeText = "RECALL +1";
+                        recallNoticeRemainingSeconds = 1.0f;
+                    }
                     if (currentGame.WasTimeOrbCollectedOnLastMove())
                     {
                         orbNoticeGrantedSeconds =
@@ -549,6 +615,7 @@ static int RunGame(const char* _argv0)
                         {
                             bestNoticeShownThisRun = true;
                         }
+                        recallNoticeRemainingSeconds = 0.0f;
                         stageClearNotice.Show({
                             currentGame.GetCompletedStages(),
                             std::max(0.0f, currentGame.GetRemainingTime() - previousTime),
@@ -643,6 +710,8 @@ static int RunGame(const char* _argv0)
             DrawStageClearNotice(renderer, hudFont, app, stageClearNotice);
             DrawTimeOrbPickupNotice(renderer, hudFont, app,
                 orbNoticeGrantedSeconds, orbNoticeRemainingSeconds);
+            DrawRecallNotice(renderer, hudFont, app, recallNoticeText,
+                recallNoticeRemainingSeconds);
         }
 
         const float fadeAlpha = flow.GetFadeAlpha();
