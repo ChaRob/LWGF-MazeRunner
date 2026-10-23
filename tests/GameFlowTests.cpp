@@ -90,7 +90,8 @@ int main()
         Require(flow.GetState() == ScreenState::Playing, "restart must reach gameplay");
         Require(flow.GetSession()->GetStage().GetNumber() == 1,
             "restarting must reset stage");
-        Require(flow.GetSession()->GetScore() == 0, "restarting must reset score");
+        Require(flow.GetSession()->GetCompletedStages() == 0,
+            "restarting must reset completed stages");
         Require(flow.GetSession()->GetRemainingTime() == initialTime,
             "restarting must reset remaining time");
 
