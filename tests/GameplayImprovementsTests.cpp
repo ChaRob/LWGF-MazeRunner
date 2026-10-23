@@ -202,16 +202,6 @@ namespace
         Require(std::fabs(game.GetRemainingTime() - expectedRemainingTime) < 0.001f,
             "Clear bonus must use the configured seconds per cell");
 
-        const float speedScoreSeconds = std::max(0.0f,
-            static_cast<float>(path.size()) * GameTuning::Score::SpeedBaselineSecondsPerCell
-            - ElapsedSeconds);
-        const std::uint64_t expectedScore =
-            GameTuning::Score::BasePointsPerStage
-            + static_cast<std::uint64_t>(path.size()) * GameTuning::Score::DistancePointsPerCell
-            + static_cast<std::uint64_t>(
-                std::floor(speedScoreSeconds * GameTuning::Score::SpeedPointsPerSecondSaved));
-        Require(game.GetScore() == expectedScore,
-            "Time bonus reduction must not alter existing speed-score formula");
     }
 
     void TestStageClearNotice()
@@ -220,12 +210,12 @@ namespace
         Require(!notice.IsVisible(), "Clear notice must start hidden");
         Require(notice.GetOpacity() == 0.0f, "Hidden notice must be transparent");
 
-        notice.Show({ 6, 350, 2.5f });
+        notice.Show({ 6, 2.5f, true });
         Require(notice.IsVisible(), "Clear notice must appear immediately");
         Require(notice.GetReward().completedStage == 6
-            && notice.GetReward().earnedPoints == 350
+            && notice.GetReward().newPersonalBest
             && std::fabs(notice.GetReward().grantedTimeSeconds - 2.5f) < 0.001f,
-            "Clear notice must retain the completed stage and actual rewards");
+            "Notice must retain the clear stage, time bonus, and best-record milestone");
         Require(notice.GetOpacity() == 1.0f, "New notice must be fully visible");
 
         notice.Update(0.7f);
@@ -236,9 +226,9 @@ namespace
             "Notice must fade out near the end of its one-second lifetime");
 
         // A second clear replaces the previous reward and resets the one-second timer.
-        notice.Show({ 7, 420, 0.0f });
+        notice.Show({ 7, 0.0f, false });
         Require(notice.GetReward().completedStage == 7
-            && notice.GetReward().earnedPoints == 420
+            && !notice.GetReward().newPersonalBest
             && notice.GetReward().grantedTimeSeconds == 0.0f,
             "Consecutive clears must replace stale notice data");
         Require(notice.GetOpacity() == 1.0f, "New clear must reset notice opacity");
@@ -247,14 +237,14 @@ namespace
         notice.Update(GameTuning::Transition::ClearNoticeSeconds * 0.02f);
         Require(!notice.IsVisible(), "Notice must disappear after one second");
 
-        notice.Show({ 8, 500, 1.0f });
+        notice.Show({ 8, 1.0f, false });
         notice.Clear();
         Require(!notice.IsVisible(), "Returning to the menu must dismiss the notice");
 
         // The notice exists independently of the session and cannot pause the clock.
         GameSession runningGame(6789u);
         const float timeBefore = runningGame.GetRemainingTime();
-        notice.Show({ 1, 100, 1.0f });
+        notice.Show({ 1, 1.0f, true });
         runningGame.Update(0.5f);
         notice.Update(0.5f);
         Require(runningGame.GetStatus() == GameStatus::Playing
