@@ -359,3 +359,19 @@ V1 플레이 테스트 이후 필요성을 확인하고 다음 기능을 검토�
 - 카운트다운/GO! 중에는 방향키 이동을 허용하지 않는다.
 - 0.15초 이동 간격은 방향 전환이나 키를 잠깐 떼었다 다시 눌러도 공유한다. 길게 누른 경우에도 프레임당 최대 한 칸만 이동한다.
 - 새 스테이지 진입 또는 일시정지 복귀 후에는 모든 방향키를 뗀 다음 재입력해야 한다.
+
+## 15. Developer Tuning (internal only)
+
+게임 밸런스 테스트를 위해 **`src/game/GameTuning.h` 하나에서 수치를 변경**할 수 있다.
+
+- `Movement::RepeatIntervalSeconds`: 방향키 홀드 및 방향 전환에 공통으로 적용하는 이동 간격 (기본 0.15초)
+- `Time::InitialSeconds` / `MaximumSeconds` / `ClearBonusSecondsPerCell`: 최초 30초, 최대 30초, 클리어 시 0.20초/칸
+- `Score::BasePointsPerStage` / `DistancePointsPerCell` / `SpeedBaselineSecondsPerCell` / `SpeedPointsPerSecondSaved`: 기본 점수, 거리 점수, 속도 평가 기준 (시간 보너스와 독립)
+- `Maze::InitialCellSize` / `MaximumCellSize` / `CellGrowthPerTier` / `StagesPerTier` / `GoalMinimumDistanceRatio`: 스테이지에 따른 미로 크기 및 Goal 거리 비율
+- `Transition::FadeSeconds` / `CountdownSeconds` / `GoSeconds`: 페이드, 시작 카운트다운, GO 표시 시간
+
+**사용법**: 헤더에서 원하는 값을 바꾼 뒤 CMake 프로젝트를 다시 빌드하고 게임을 실행한다. 별도 설정 파일을 로딩하지 않으며 값은 실행 파일에 컴파일되므로 배포된 게임 사용자가 설정 파일로 게임 규칙을 수정할 수 없다.
+
+헤더에 `static_assert`를 포함해 유효하지 않은 값은 컴파일 단계에서 감지한다. 예를 들어 이동 간격은 0보다 커야 하고, 최대 시간은 시작 시간 이상이어야 하며, 미로 크기 증가 폭으로 최대 크기에 도달할 수 있어야 한다. 카운트다운은 1~9초의 정수로 제한한다. 테스트도 대부분 헤더의 설정값을 기준으로 검증하도록 변경했다.
+
+UI 색상·테마 및 외부 JSON 설정 파일은 포함하지 않는다. 향후 테마 전환이 필요해질 경우 UI 설정을 별도 설계한다.
