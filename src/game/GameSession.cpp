@@ -10,7 +10,9 @@ namespace
 {
     constexpr float InitialTime = 30.0f;
     constexpr float MaximumTime = 30.0f;
-    constexpr float BonusSecondsPerCell = 0.5f;
+    constexpr float BonusSecondsPerCell = 0.1f;
+    // Keep the original speed-score baseline when rebalancing granted game time.
+    constexpr float SpeedScoreBaselineSecondsPerCell = 0.5f;
     constexpr std::uint64_t BaseScorePerStage = 100;
     constexpr std::uint64_t ScorePerDistanceCell = 10;
 }
@@ -64,7 +66,9 @@ void GameSession::TryMove(const CellPosition& _direction)
     const float timeBonus = static_cast<float>(distance) * BonusSecondsPerCell;
 
     // Provisional scoring: reward progress and actual maze path length.
-    const float savedSeconds = std::max(0.0f, timeBonus - m_stageElapsedTime);
+    const float speedScoreBaseline =
+        static_cast<float>(distance) * SpeedScoreBaselineSecondsPerCell;
+    const float savedSeconds = std::max(0.0f, speedScoreBaseline - m_stageElapsedTime);
     const std::uint64_t speedPoints =
         static_cast<std::uint64_t>(std::floor(savedSeconds * 10.0f));
     const std::uint64_t points =
