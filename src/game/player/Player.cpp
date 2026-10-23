@@ -11,6 +11,11 @@ const CellPosition& Player::GetPosition() const noexcept
     return m_position;
 }
 
+void Player::ResetPosition(const CellPosition& _position) noexcept
+{
+    m_position = _position;
+}
+
 bool Player::TryMove(
     const Maze& _maze,
     const CellPosition& _direction)

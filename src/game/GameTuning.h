@@ -40,6 +40,29 @@ namespace GameTuning
         }
     }
 
+    namespace Inventory
+    {
+        inline constexpr int RecallMaxCount = 2;
+        inline constexpr int WallBreakMaxCount = 2;
+        inline constexpr int TeleportMaxCount = 1;
+    }
+
+    namespace Recall
+    {
+        inline constexpr std::uint64_t EarlyStageEnd = 30;
+        inline constexpr std::uint64_t MiddleStageEnd = 40;
+        inline constexpr double EarlySpawnChance = 0.05;
+        inline constexpr double MiddleSpawnChance = 0.075;
+        inline constexpr double LateSpawnChance = 0.10;
+
+        constexpr double GetSpawnChance(std::uint64_t _stageNumber) noexcept
+        {
+            return _stageNumber <= EarlyStageEnd ? EarlySpawnChance
+                : _stageNumber <= MiddleStageEnd ? MiddleSpawnChance
+                : LateSpawnChance;
+        }
+    }
+
     namespace Maze
     {
         inline constexpr int InitialCellSize = 5;
@@ -101,3 +124,18 @@ static_assert(GameTuning::TimeOrb::EarlySpawnChance >= 0.0
 static_assert(GameTuning::TimeOrb::RecoverySeconds > 0.0f
     && GameTuning::TimeOrb::PickupNoticeSeconds > 0.0f,
     "Time Orb recovery and pickup notice durations must be positive.");
+
+static_assert(GameTuning::Inventory::RecallMaxCount > 0
+    && GameTuning::Inventory::WallBreakMaxCount > 0
+    && GameTuning::Inventory::TeleportMaxCount > 0,
+    "Inventory item capacity must be positive.");
+static_assert(GameTuning::Recall::EarlyStageEnd > 0
+    && GameTuning::Recall::MiddleStageEnd > GameTuning::Recall::EarlyStageEnd,
+    "Recall tiers must be increasing.");
+static_assert(GameTuning::Recall::EarlySpawnChance >= 0.0
+    && GameTuning::Recall::EarlySpawnChance <= 1.0
+    && GameTuning::Recall::MiddleSpawnChance >= 0.0
+    && GameTuning::Recall::MiddleSpawnChance <= 1.0
+    && GameTuning::Recall::LateSpawnChance >= 0.0
+    && GameTuning::Recall::LateSpawnChance <= 1.0,
+    "Recall spawn probabilities must be between zero and one.");

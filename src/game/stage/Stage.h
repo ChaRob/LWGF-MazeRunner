@@ -17,6 +17,9 @@ public:
     const MazeEndpoints& GetEndpoints() const noexcept;
     const Player& GetPlayer() const noexcept;
     const std::optional<CellPosition>& GetTimeOrbPosition() const noexcept;
+    const std::optional<CellPosition>& GetRecallPosition() const noexcept;
+    bool TryCollectRecallAtPlayerPosition() noexcept;
+    bool RecallPlayerToStart() noexcept;
     bool WasTimeOrbCollectedOnLastMove() const noexcept;
 
     bool TryMovePlayer(const CellPosition& _direction);
@@ -29,5 +32,6 @@ private:
     MazeEndpoints m_endpoints;
     Player m_player;
     std::optional<CellPosition> m_timeOrbPosition;
+    std::optional<CellPosition> m_recallPosition;
     bool m_timeOrbCollectedOnLastMove = false;
 };

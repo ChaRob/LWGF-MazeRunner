@@ -10,6 +10,7 @@ public:
     explicit Player(const CellPosition& _startPosition);
 
     const CellPosition& GetPosition() const noexcept;
+    void ResetPosition(const CellPosition& _position) noexcept;
 
     bool TryMove(
         const Maze& _maze,

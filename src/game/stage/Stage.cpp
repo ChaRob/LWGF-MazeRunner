@@ -4,6 +4,7 @@
 #include "../maze/MazeEndpointGenerator.h"
 #include "../maze/MazeGenerator.h"
 
+#include <algorithm>
 #include <stdexcept>
 #include <random>
 #include <vector>
@@ -12,6 +13,7 @@ namespace
 {
     constexpr std::uint32_t EndpointSeedOffset = 0x9E3779B9u;
     constexpr std::uint32_t TimeOrbSeedOffset = 0xD1B54A35u;
+    constexpr std::uint32_t RecallSeedOffset = 0xBF58476Du;
 }
 
 int Stage::GetCellSize(std::uint64_t _stageNumber)
@@ -50,17 +52,24 @@ Stage::Stage(std::uint64_t _number, std::uint32_t _seed)
         GameTuning::Maze::GoalMinimumDistanceRatio))
     , m_player(m_endpoints.start)
 {
-    // Dedicated RNG: item rolls never perturb maze or endpoint generation.
-    std::mt19937 itemRandom(_seed ^ TimeOrbSeedOffset);
-    std::bernoulli_distribution spawn(
+    // Independent rolls keep the existing maze, endpoints and Time Orb
+    // distribution unchanged when Recall is introduced.
+    std::mt19937 orbRandom(_seed ^ TimeOrbSeedOffset);
+    std::bernoulli_distribution orbSpawn(
         GameTuning::TimeOrb::GetSpawnChance(m_number));
-    if (!spawn(itemRandom))
+    const bool spawnOrb = orbSpawn(orbRandom);
+
+    std::mt19937 recallRandom(_seed ^ RecallSeedOffset);
+    std::bernoulli_distribution recallSpawn(
+        GameTuning::Recall::GetSpawnChance(m_number));
+    const bool spawnRecall = recallSpawn(recallRandom);
+
+    if (!spawnOrb && !spawnRecall)
     {
         return;
     }
 
-    // Every logical Cell is traversable. Exclude the player spawn and goal,
-    // but do not favor the shortest route (pure uniform random placement).
+    // Every logical Cell is traversable; do not favor the shortest path.
     std::vector<CellPosition> candidates;
     candidates.reserve(static_cast<std::size_t>(
         m_maze.GetCellWidth() * m_maze.GetCellHeight() - 2));
@@ -76,11 +85,32 @@ Stage::Stage(std::uint64_t _number, std::uint32_t _seed)
         }
     }
 
-    if (!candidates.empty())
+    if (spawnOrb && !candidates.empty())
     {
         std::uniform_int_distribution<std::size_t> distribution(
             0, candidates.size() - 1);
-        m_timeOrbPosition = candidates[distribution(itemRandom)];
+        m_timeOrbPosition = candidates[distribution(orbRandom)];
+    }
+
+    if (spawnRecall)
+    {
+        // Recall and the Time Orb have independent spawn chances but cannot
+        // occupy the same Cell. Reroute Recall only; never move the Time Orb.
+        if (m_timeOrbPosition)
+        {
+            const auto it = std::find(candidates.begin(), candidates.end(),
+                *m_timeOrbPosition);
+            if (it != candidates.end())
+            {
+                candidates.erase(it);
+            }
+        }
+        if (!candidates.empty())
+        {
+            std::uniform_int_distribution<std::size_t> distribution(
+                0, candidates.size() - 1);
+            m_recallPosition = candidates[distribution(recallRandom)];
+        }
     }
 }
 
@@ -107,6 +137,34 @@ const Player& Stage::GetPlayer() const noexcept
 const std::optional<CellPosition>& Stage::GetTimeOrbPosition() const noexcept
 {
     return m_timeOrbPosition;
+}
+
+const std::optional<CellPosition>& Stage::GetRecallPosition() const noexcept
+{
+    return m_recallPosition;
+}
+
+bool Stage::TryCollectRecallAtPlayerPosition() noexcept
+{
+    if (!m_recallPosition || m_player.GetPosition() != *m_recallPosition)
+    {
+        return false;
+    }
+
+    m_recallPosition.reset();
+    return true;
+}
+
+bool Stage::RecallPlayerToStart() noexcept
+{
+    if (m_player.GetPosition() == m_endpoints.start)
+    {
+        return false;
+    }
+
+    m_player.ResetPosition(m_endpoints.start);
+    m_timeOrbCollectedOnLastMove = false;
+    return true;
 }
 
 bool Stage::WasTimeOrbCollectedOnLastMove() const noexcept
