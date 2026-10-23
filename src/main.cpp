@@ -173,6 +173,45 @@ namespace
             menu.Contains(_app.GetMouseX(), _app.GetMouseY()));
     }
 
+    void DrawCountdownScreen(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, int _number, bool _showGo)
+    {
+        // The maze must not be rendered before the game clock starts.
+        const float centerX = _app.GetWidth() * 0.5f;
+        const float centerY = _app.GetHeight() * 0.5f;
+
+        DrawCenteredText(_renderer, _font,
+            _showGo ? "START!" : "GET READY",
+            centerX, centerY + 100.0f, 32.0f, SubtleTextColor);
+
+        if (_showGo)
+        {
+            DrawCenteredText(_renderer, _font, "GO!",
+                centerX, centerY - 45.0f, 112.0f, HighlightColor);
+            return;
+        }
+
+        char countdown[8] = {};
+        std::snprintf(countdown, sizeof(countdown), "%d", _number);
+        DrawCenteredText(_renderer, _font, countdown,
+            centerX, centerY - 45.0f, 112.0f, HighlightColor);
+
+        constexpr float segmentWidth = 50.0f;
+        constexpr float segmentGap = 12.0f;
+        constexpr float segmentHeight = 6.0f;
+        constexpr float totalWidth = segmentWidth * 3.0f + segmentGap * 2.0f;
+        const float startX = centerX - totalWidth * 0.5f;
+        const int activeSegments = 4 - _number;
+
+        for (int i = 0; i < 3; ++i)
+        {
+            _renderer.DrawRect(startX + static_cast<float>(i) *
+                (segmentWidth + segmentGap), centerY - 113.0f,
+                segmentWidth, segmentHeight,
+                i < activeSegments ? HighlightColor : ButtonColor);
+        }
+    }
+
     void DrawGameplay(Renderer2D& _renderer, const Font& _font,
         const Application& _app, const GameSession& _game)
     {
@@ -386,24 +425,18 @@ static int RunGame(const char* _argv0)
         {
             DrawResult(renderer, hudFont, app, *flow.GetSession());
         }
-        else if ((visibleState == ScreenState::Playing
-            || visibleState == ScreenState::Countdown) && flow.GetSession())
+        else if (visibleState == ScreenState::Countdown
+            || visibleState == ScreenState::Go)
+        {
+            const bool showGo = flow.GetState() == ScreenState::Go;
+            // Fade-in previews the initial "3" screen without revealing the maze.
+            const int number = flow.GetState() == ScreenState::FadingIn
+                ? 3 : flow.GetCountdownNumber();
+            DrawCountdownScreen(renderer, hudFont, app, number, showGo);
+        }
+        else if (visibleState == ScreenState::Playing && flow.GetSession())
         {
             DrawGameplay(renderer, hudFont, app, *flow.GetSession());
-
-            if (flow.GetState() == ScreenState::Countdown)
-            {
-                char countdown[8] = {};
-                std::snprintf(countdown, sizeof(countdown), "%d",
-                    flow.GetCountdownNumber());
-
-                const float centerX = app.GetWidth() * 0.5f;
-                const float centerY = app.GetHeight() * 0.5f;
-                renderer.DrawRect(centerX - 76.0f, centerY - 64.0f,
-                    152.0f, 152.0f, { 0.04f, 0.06f, 0.09f, 0.86f });
-                DrawCenteredText(renderer, hudFont, countdown,
-                    centerX, centerY - 30.0f, 88.0f, HighlightColor);
-            }
         }
 
         const float fadeAlpha = flow.GetFadeAlpha();
