@@ -192,5 +192,6 @@ int GameFlow::GetCountdownNumber() const noexcept
         return 0;
     }
 
-    return std::clamp(static_cast<int>(std::ceil(m_countdownRemaining)), 1, 3);
+    return std::clamp(static_cast<int>(std::ceil(m_countdownRemaining)),
+        1, GameTuning::Transition::CountdownSeconds);
 }
