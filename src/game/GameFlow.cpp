@@ -149,6 +149,12 @@ bool GameFlow::TryUseItem(ActiveItemType _item,
         && m_session->TryUseItem(_item, _direction);
 }
 
+bool GameFlow::TryTeleport(const CellPosition& _destination)
+{
+    return m_state == ScreenState::Playing && m_session
+        && m_session->TryTeleport(_destination);
+}
+
 ScreenState GameFlow::GetState() const noexcept
 {
     return m_state;
