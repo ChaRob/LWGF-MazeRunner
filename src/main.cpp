@@ -359,6 +359,25 @@ namespace
             { 1.0f, 0.77f, 0.37f, opacity });
     }
 
+    void DrawTeleportNotice(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, std::string_view _message, float _remainingSeconds)
+    {
+        if (_remainingSeconds <= 0.0f)
+        {
+            return;
+        }
+        const float opacity = std::clamp(_remainingSeconds / 0.2f, 0.0f, 1.0f);
+        constexpr float panelWidth = 262.0f;
+        constexpr float panelHeight = 43.0f;
+        const float panelX = (static_cast<float>(_app.GetWidth()) - panelWidth) * 0.5f;
+        const float panelY = static_cast<float>(_app.GetHeight()) - 269.0f;
+        _renderer.DrawRect(panelX, panelY, panelWidth, panelHeight,
+            { 0.24f, 0.08f, 0.14f, opacity * 0.88f });
+        DrawCenteredText(_renderer, _font, _message,
+            panelX + panelWidth * 0.5f, panelY + 11.0f, 23.0f,
+            { 1.0f, 0.69f, 0.82f, opacity });
+    }
+
     struct MazeViewLayout
     {
         float tileSize = 0.0f;
@@ -943,7 +962,7 @@ static int RunGame(const char* _argv0)
                 recallNoticeRemainingSeconds);
             DrawWallBreakNotice(renderer, hudFont, app, wallBreakNoticeText,
                 wallBreakNoticeRemainingSeconds);
-            DrawWallBreakNotice(renderer, hudFont, app, teleportNoticeText,
+            DrawTeleportNotice(renderer, hudFont, app, teleportNoticeText,
                 teleportNoticeRemainingSeconds);
         }
 
