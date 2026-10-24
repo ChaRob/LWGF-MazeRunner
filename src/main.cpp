@@ -49,6 +49,7 @@ namespace
     constexpr Color ButtonColor = { 0.16f, 0.22f, 0.31f, 1.0f };
     constexpr Color HoverColor = { 0.26f, 0.36f, 0.49f, 1.0f };
     constexpr Color WallColor = { 0.8f, 0.8f, 0.8f, 1.0f };
+    constexpr Color OuterWallColor = { 0.42f, 0.61f, 0.83f, 1.0f };
     constexpr Color StartColor = { 0.2f, 0.8f, 0.2f, 1.0f };
     constexpr Color GoalColor = { 0.8f, 0.2f, 0.2f, 1.0f };
     constexpr Color PlayerColor = { 0.2f, 0.5f, 1.0f, 1.0f };
@@ -56,6 +57,8 @@ namespace
     constexpr Color TimeOrbCoreColor = { 0.96f, 1.0f, 1.0f, 1.0f };
     constexpr Color RecallColor = { 0.72f, 0.39f, 0.96f, 1.0f };
     constexpr Color RecallCoreColor = { 1.0f, 0.90f, 1.0f, 1.0f };
+    constexpr Color WallBreakColor = { 1.0f, 0.57f, 0.19f, 1.0f };
+    constexpr Color WallBreakCoreColor = { 1.0f, 0.91f, 0.62f, 1.0f };
     constexpr Color TimerBackground = { 0.25f, 0.25f, 0.25f, 1.0f };
     constexpr Color TimerForeground = { 0.25f, 0.75f, 0.3f, 1.0f };
 
@@ -334,6 +337,25 @@ namespace
             { 0.94f, 0.74f, 1.0f, opacity });
     }
 
+    void DrawWallBreakNotice(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, std::string_view _message, float _remainingSeconds)
+    {
+        if (_remainingSeconds <= 0.0f)
+        {
+            return;
+        }
+        const float opacity = std::clamp(_remainingSeconds / 0.2f, 0.0f, 1.0f);
+        constexpr float panelWidth = 262.0f;
+        constexpr float panelHeight = 43.0f;
+        const float panelX = (static_cast<float>(_app.GetWidth()) - panelWidth) * 0.5f;
+        const float panelY = static_cast<float>(_app.GetHeight()) - 219.0f;
+        _renderer.DrawRect(panelX, panelY, panelWidth, panelHeight,
+            { 0.27f, 0.13f, 0.06f, opacity * 0.89f });
+        DrawCenteredText(_renderer, _font, _message,
+            panelX + panelWidth * 0.5f, panelY + 11.0f, 23.0f,
+            { 1.0f, 0.77f, 0.37f, opacity });
+    }
+
     void DrawGameplay(Renderer2D& _renderer, const Font& _font,
         const Application& _app, const GameSession& _game,
         const BestStageRecord& _record, const PlayerMovementVisual& _visual)
@@ -365,7 +387,8 @@ namespace
                 if (maze.GetTile(x, y) == TileType::Wall)
                 {
                     _renderer.DrawRect(startX + x * tileSize, startY + y * tileSize,
-                        tileSize, tileSize, WallColor);
+                        tileSize, tileSize,
+                        maze.IsOuterWall(x, y) ? OuterWallColor : WallColor);
                 }
             }
         }
@@ -411,6 +434,22 @@ namespace
                 coreSize, coreSize, RecallCoreColor);
         }
 
+        // Permanent wall-break item: orange, clearly different from the
+        // cyan Time Orb and violet Recall; visible from stage start.
+        if (stage.GetWallBreakPosition())
+        {
+            const CellPosition item = *stage.GetWallBreakPosition();
+            const float itemX = startX + static_cast<float>(item.x * 2 + 1) * tileSize;
+            const float itemY = startY + static_cast<float>(item.y * 2 + 1) * tileSize;
+            const float inset = tileSize * 0.08f;
+            _renderer.DrawRect(itemX + inset, itemY + inset,
+                tileSize - inset * 2.0f, tileSize - inset * 2.0f, WallBreakColor);
+            const float coreSize = tileSize * 0.4f;
+            const float coreInset = (tileSize - coreSize) * 0.5f;
+            _renderer.DrawRect(itemX + coreInset, itemY + coreInset,
+                coreSize, coreSize, WallBreakCoreColor);
+        }
+
         const float playerSize = tileSize * 0.7f;
         const float playerOffset = (tileSize - playerSize) * 0.5f;
         _renderer.DrawRect(
@@ -426,6 +465,16 @@ namespace
         _renderer.DrawText(_font, recallHud,
             margin, static_cast<float>(_app.GetHeight()) - 96.0f,
             19.0f, RecallColor);
+
+        const int wallBreakCount =
+            _game.GetInventory().GetCount(ActiveItemType::WallBreak);
+        char wallBreakHud[96] = {};
+        std::snprintf(wallBreakHud, sizeof(wallBreakHud), "Q + ARROWS  BREAK %d/%d",
+            wallBreakCount, ActiveItemInventory::GetCapacity(ActiveItemType::WallBreak));
+        const float wallHudWidth = _renderer.MeasureTextWidth(_font, wallBreakHud, 19.0f);
+        _renderer.DrawText(_font, wallBreakHud,
+            static_cast<float>(_app.GetWidth()) - margin - wallHudWidth,
+            static_cast<float>(_app.GetHeight()) - 96.0f, 19.0f, WallBreakColor);
 
         const float labelY = static_cast<float>(_app.GetHeight()) - 40.0f;
         const float textHeight = 28.0f;
@@ -499,6 +548,8 @@ static int RunGame(const char* _argv0)
     float orbNoticeGrantedSeconds = 0.0f;
     float recallNoticeRemainingSeconds = 0.0f;
     std::string recallNoticeText;
+    float wallBreakNoticeRemainingSeconds = 0.0f;
+    std::string wallBreakNoticeText;
 
     while (app.IsRunning())
     {
@@ -519,6 +570,8 @@ static int RunGame(const char* _argv0)
                 std::max(0.0f, orbNoticeRemainingSeconds - app.GetDeltaTime());
             recallNoticeRemainingSeconds =
                 std::max(0.0f, recallNoticeRemainingSeconds - app.GetDeltaTime());
+            wallBreakNoticeRemainingSeconds =
+                std::max(0.0f, wallBreakNoticeRemainingSeconds - app.GetDeltaTime());
         }
         if (flow.GetState() == ScreenState::MainMenu
             || flow.GetState() == ScreenState::Result)
@@ -526,6 +579,7 @@ static int RunGame(const char* _argv0)
             stageClearNotice.Clear();
             orbNoticeRemainingSeconds = 0.0f;
             recallNoticeRemainingSeconds = 0.0f;
+            wallBreakNoticeRemainingSeconds = 0.0f;
         }
 
         if (inputState == ScreenState::MainMenu
@@ -537,6 +591,7 @@ static int RunGame(const char* _argv0)
                 bestNoticeShownThisRun = false;
                 orbNoticeRemainingSeconds = 0.0f;
                 recallNoticeRemainingSeconds = 0.0f;
+                wallBreakNoticeRemainingSeconds = 0.0f;
             }
             else if (IsClicked(app, LowerButton(app.GetWidth(), app.GetHeight())))
             {
@@ -559,6 +614,35 @@ static int RunGame(const char* _argv0)
                 movementInput.RequireRelease();
                 recallNoticeText = "RECALL USED";
                 recallNoticeRemainingSeconds = 1.0f;
+            }
+            else if (app.IsKeyDown(Key::Q))
+            {
+                // Hold Q and press exactly one arrow. Either order works:
+                // Q while holding an arrow, or an arrow while holding Q.
+                // The held Q suppresses ordinary movement and prevents
+                // repeatedly spending items on one continuous key hold.
+                movementInput.RequireRelease();
+                const bool up = app.IsKeyDown(Key::UP);
+                const bool down = app.IsKeyDown(Key::DOWN);
+                const bool left = app.IsKeyDown(Key::LEFT);
+                const bool right = app.IsKeyDown(Key::RIGHT);
+                const int held = static_cast<int>(up) + static_cast<int>(down)
+                    + static_cast<int>(left) + static_cast<int>(right);
+                const bool fresh = app.IsKeyPressed(Key::Q)
+                    || app.IsKeyPressed(Key::UP) || app.IsKeyPressed(Key::DOWN)
+                    || app.IsKeyPressed(Key::LEFT) || app.IsKeyPressed(Key::RIGHT);
+                if (held == 1 && fresh)
+                {
+                    const CellPosition direction = up ? CellPosition{ 0, 1 }
+                        : down ? CellPosition{ 0, -1 }
+                        : left ? CellPosition{ -1, 0 }
+                        : CellPosition{ 1, 0 };
+                    if (flow.TryUseItem(ActiveItemType::WallBreak, direction))
+                    {
+                        wallBreakNoticeText = "WALL BROKEN";
+                        wallBreakNoticeRemainingSeconds = 1.0f;
+                    }
+                }
             }
             else
             {
@@ -592,6 +676,11 @@ static int RunGame(const char* _argv0)
                     flow.TryMove(direction);
 
                     const GameSession& currentGame = *flow.GetSession();
+                    if (currentGame.WasWallBreakCollectedOnLastMove())
+                    {
+                        wallBreakNoticeText = "WALL BREAK +1";
+                        wallBreakNoticeRemainingSeconds = 1.0f;
+                    }
                     if (currentGame.WasRecallCollectedOnLastMove())
                     {
                         recallNoticeText = "RECALL +1";
@@ -616,6 +705,7 @@ static int RunGame(const char* _argv0)
                             bestNoticeShownThisRun = true;
                         }
                         recallNoticeRemainingSeconds = 0.0f;
+                        wallBreakNoticeRemainingSeconds = 0.0f;
                         stageClearNotice.Show({
                             currentGame.GetCompletedStages(),
                             std::max(0.0f, currentGame.GetRemainingTime() - previousTime),
@@ -712,6 +802,8 @@ static int RunGame(const char* _argv0)
                 orbNoticeGrantedSeconds, orbNoticeRemainingSeconds);
             DrawRecallNotice(renderer, hudFont, app, recallNoticeText,
                 recallNoticeRemainingSeconds);
+            DrawWallBreakNotice(renderer, hudFont, app, wallBreakNoticeText,
+                wallBreakNoticeRemainingSeconds);
         }
 
         const float fadeAlpha = flow.GetFadeAlpha();
