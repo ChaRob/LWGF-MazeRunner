@@ -117,11 +117,13 @@ namespace
             "Recall has a five percent early tier");
         Require(GetSpawnChance(31) == 0.075 && GetSpawnChance(40) == 0.075,
             "Recall has a 7.5 percent middle tier");
-        Require(GetSpawnChance(41) == 0.10 && GetSpawnChance(300) == 0.10,
+        Require(GetSpawnChance(41) == 0.10 && GetSpawnChance(50) == 0.10,
             "Recall has a ten percent late tier");
+        Require(GetSpawnChance(51) == 0.125 && GetSpawnChance(300) == 0.125,
+            "Recall has a 12.5 percent endgame tier");
 
         constexpr int SampleCount = 1200;
-        for (const std::uint64_t stageNumber : { 1ull, 31ull, 41ull })
+        for (const std::uint64_t stageNumber : { 1ull, 31ull, 41ull, 51ull })
         {
             int spawned = 0;
             int both = 0;
