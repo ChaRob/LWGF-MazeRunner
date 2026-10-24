@@ -63,6 +63,24 @@ namespace GameTuning
         }
     }
 
+    namespace WallBreak
+    {
+        // First pass values for playtesting. Adjust here without changing
+        // item placement or inventory logic.
+        inline constexpr std::uint64_t EarlyStageEnd = 30;
+        inline constexpr std::uint64_t MiddleStageEnd = 40;
+        inline constexpr double EarlySpawnChance = 0.05;
+        inline constexpr double MiddleSpawnChance = 0.075;
+        inline constexpr double LateSpawnChance = 0.10;
+
+        constexpr double GetSpawnChance(std::uint64_t _stageNumber) noexcept
+        {
+            return _stageNumber <= EarlyStageEnd ? EarlySpawnChance
+                : _stageNumber <= MiddleStageEnd ? MiddleSpawnChance
+                : LateSpawnChance;
+        }
+    }
+
     namespace Maze
     {
         inline constexpr int InitialCellSize = 5;
@@ -139,3 +157,14 @@ static_assert(GameTuning::Recall::EarlySpawnChance >= 0.0
     && GameTuning::Recall::LateSpawnChance >= 0.0
     && GameTuning::Recall::LateSpawnChance <= 1.0,
     "Recall spawn probabilities must be between zero and one.");
+
+static_assert(GameTuning::WallBreak::EarlyStageEnd > 0
+    && GameTuning::WallBreak::MiddleStageEnd > GameTuning::WallBreak::EarlyStageEnd,
+    "Wall Break stage tiers must be strictly increasing.");
+static_assert(GameTuning::WallBreak::EarlySpawnChance >= 0.0
+    && GameTuning::WallBreak::EarlySpawnChance <= 1.0
+    && GameTuning::WallBreak::MiddleSpawnChance >= 0.0
+    && GameTuning::WallBreak::MiddleSpawnChance <= 1.0
+    && GameTuning::WallBreak::LateSpawnChance >= 0.0
+    && GameTuning::WallBreak::LateSpawnChance <= 1.0,
+    "Wall Break spawn probabilities must be in [0, 1].");

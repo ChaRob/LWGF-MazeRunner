@@ -18,6 +18,9 @@ public:
     const Player& GetPlayer() const noexcept;
     const std::optional<CellPosition>& GetTimeOrbPosition() const noexcept;
     const std::optional<CellPosition>& GetRecallPosition() const noexcept;
+    const std::optional<CellPosition>& GetWallBreakPosition() const noexcept;
+    bool TryCollectWallBreakAtPlayerPosition() noexcept;
+    bool TryBreakWall(const CellPosition& _direction);
     bool TryCollectRecallAtPlayerPosition() noexcept;
     bool RecallPlayerToStart() noexcept;
     bool WasTimeOrbCollectedOnLastMove() const noexcept;
@@ -33,5 +36,6 @@ private:
     Player m_player;
     std::optional<CellPosition> m_timeOrbPosition;
     std::optional<CellPosition> m_recallPosition;
+    std::optional<CellPosition> m_wallBreakPosition;
     bool m_timeOrbCollectedOnLastMove = false;
 };

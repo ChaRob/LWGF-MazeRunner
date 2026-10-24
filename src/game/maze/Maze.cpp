@@ -105,6 +105,35 @@ bool Maze::CanMove(const CellPosition& _from, const CellPosition& _to) const
     return GetTile(wallTileX, wallTileY) == TileType::Path;
 }
 
+bool Maze::IsOuterWall(int _tileX, int _tileY) const noexcept
+{
+    return IsTileInside(_tileX, _tileY)
+        && (_tileX == 0 || _tileY == 0
+            || _tileX == m_tileWidth - 1
+            || _tileY == m_tileHeight - 1);
+}
+
+bool Maze::TryBreakWall(const CellPosition& _from, const CellPosition& _to)
+{
+    // Only two adjacent logical Cells may be joined. The outer boundary
+    // never lies between valid Cell centers, so it cannot be modified.
+    if (!IsCellInside(_from) || !IsCellInside(_to)
+        || std::abs(_to.x - _from.x) + std::abs(_to.y - _from.y) != 1)
+    {
+        return false;
+    }
+
+    const int wallX = _from.x + _to.x + 1;
+    const int wallY = _from.y + _to.y + 1;
+    if (IsOuterWall(wallX, wallY) || GetTile(wallX, wallY) != TileType::Wall)
+    {
+        return false;
+    }
+
+    SetTile(wallX, wallY, TileType::Path);
+    return true;
+}
+
 void Maze::SetTile(int _x, int _y, TileType _type)
 {
     if (!IsTileInside(_x, _y))
