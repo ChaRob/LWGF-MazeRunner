@@ -96,8 +96,8 @@ namespace
             "Stages 31-40 must roll fifteen percent");
         Require(GetSpawnChance(41) == 0.25 && GetSpawnChance(50) == 0.25,
             "Stages 41-50 must roll twenty-five percent");
-        Require(GetSpawnChance(51) == 0.35 && GetSpawnChance(100) == 0.35,
-            "Stages 51+ must roll thirty-five percent");
+        Require(GetSpawnChance(51) == 0.40 && GetSpawnChance(100) == 0.40,
+            "Stages 51+ must roll forty percent");
 
         // Deterministic Bernoulli draws should converge toward configured rates.
         // The tolerance is wider than normal sampling noise to avoid flaky tests.

@@ -144,11 +144,13 @@ namespace
             "Stages 1-30 must have 5% Wall Break chance");
         Require(GetSpawnChance(31) == 0.075 && GetSpawnChance(40) == 0.075,
             "Stages 31-40 must have 7.5% Wall Break chance");
-        Require(GetSpawnChance(41) == 0.10 && GetSpawnChance(100) == 0.10,
-            "Stages 41+ must have 10% Wall Break chance");
+        Require(GetSpawnChance(41) == 0.10 && GetSpawnChance(50) == 0.10,
+            "Stages 41-50 must have 10% Wall Break chance");
+        Require(GetSpawnChance(51) == 0.125 && GetSpawnChance(100) == 0.125,
+            "Stages 51+ must have 12.5% Wall Break chance");
 
         constexpr int SampleCount = 1200;
-        for (const std::uint64_t number : { 1ull, 31ull, 41ull })
+        for (const std::uint64_t number : { 1ull, 31ull, 41ull, 51ull })
         {
             int appeared = 0;
             for (int i = 0; i < SampleCount; ++i)
