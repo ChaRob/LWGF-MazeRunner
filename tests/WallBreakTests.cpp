@@ -81,12 +81,17 @@ namespace
         CellPosition direction;
     };
 
-    BreakTarget FindInternalWall(const Maze& _maze)
+    BreakTarget FindInternalWall(const Maze& _maze,
+        CellPosition _avoid = { -1, -1 })
     {
         for (int y = 0; y < _maze.GetCellHeight(); ++y)
         {
             for (int x = 0; x < _maze.GetCellWidth(); ++x)
             {
+                if (CellPosition{ x, y } == _avoid)
+                {
+                    continue;
+                }
                 for (CellPosition direction : Directions)
                 {
                     const CellPosition next{ x + direction.x, y + direction.y };
@@ -261,7 +266,9 @@ namespace
 
         const Maze& secondMaze = game.GetStage().GetMaze();
         const CellPosition secondStart = game.GetStage().GetEndpoints().start;
-        const BreakTarget target = FindInternalWall(secondMaze);
+        // Never pathfind *to* Goal here: entering it advances the stage.
+        const BreakTarget target = FindInternalWall(secondMaze,
+            game.GetStage().GetEndpoints().goal);
         Walk(game, FindPath(secondMaze, secondStart, target.from));
         const CellPosition player = game.GetStage().GetPlayer().GetPosition();
         Require(player == target.from, "Player should stand next to a closed wall");
