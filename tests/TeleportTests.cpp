@@ -1,5 +1,6 @@
 #include "../src/game/GameSession.h"
 #include "../src/game/GameFlow.h"
+#include "../src/game/items/TeleportSelection.h"
 #include "../src/game/GameTuning.h"
 
 #include <algorithm>
@@ -247,6 +248,150 @@ namespace
             "New game must not inherit previous run inventory");
     }
 
+    void TestKeyboardCursorNoItemCancelAndWallCrossing()
+    {
+        ActiveItemInventory inventory;
+        Stage stage(1, 123u);
+        TeleportSelection selection;
+        Require(!selection.Begin(stage, inventory) && !selection.IsActive(),
+            "T without a Teleport item must do nothing");
+        Require(!selection.TryMoveCursor(stage, { 1, 0 }),
+            "Cursor cannot move outside selection mode");
+
+        Require(inventory.TryAdd(ActiveItemType::Teleport),
+            "Precondition: grant one stored Teleport");
+        const CellPosition origin = stage.GetPlayer().GetPosition();
+        Require(selection.Begin(stage, inventory) && selection.IsActive()
+            && selection.IsAtOrigin()
+            && selection.GetSelectedPosition() == origin,
+            "First T should aim at the player's current Cell");
+        Require(!selection.Begin(stage, inventory),
+            "T while selecting should not restart targeting");
+        Require(selection.CanSelect(stage, origin)
+            && !selection.CanSelect(stage, stage.GetEndpoints().goal),
+            "Self must be selectable for cancel, Goal is forbidden");
+        Require(!selection.TryMoveCursor(stage, { 0, 0 })
+            && !selection.TryMoveCursor(stage, { 2, 0 })
+            && !selection.TryMoveCursor(stage, { 1, 1 }),
+            "Cursor steps must be exactly one Cell in a cardinal direction");
+        Require(!selection.CanSelect(stage, { -1, origin.y }),
+            "Cursor cannot target positions outside maze");
+
+        // Returning to the starting Cell cancels; the game does not
+        // consume an item on cancel. No teleport method is called here.
+        bool moved = false;
+        for (const CellPosition direction : Directions)
+        {
+            if (!selection.TryMoveCursor(stage, direction))
+            {
+                continue;
+            }
+            moved = true;
+            Require(!selection.IsAtOrigin()
+                && stage.GetPlayer().GetPosition() == origin,
+                "Arrows should move the cursor without moving the player");
+            Require(selection.TryMoveCursor(stage,
+                { -direction.x, -direction.y }) && selection.IsAtOrigin(),
+                "Cursor can return to original Cell for no-cost cancellation");
+            break;
+        }
+        Require(moved, "An adjacent valid cursor Cell should exist");
+        selection.Cancel();
+        Require(!selection.IsActive()
+            && inventory.GetCount(ActiveItemType::Teleport) == 1,
+            "T on the player's Cell must exit targeting without consuming");
+
+        // The target cursor should jump across walls freely: unlike normal
+        // movement, it can enter a logical Cell with a wall between.
+        bool foundWall = false;
+        for (std::uint32_t seed = 0; seed < 500 && !foundWall; ++seed)
+        {
+            Stage testStage(1, seed);
+            const CellPosition from = testStage.GetPlayer().GetPosition();
+            for (const CellPosition direction : Directions)
+            {
+                const CellPosition to{ from.x + direction.x, from.y + direction.y };
+                if (!testStage.GetMaze().IsCellInside(to)
+                    || to == testStage.GetEndpoints().goal
+                    || testStage.GetMaze().CanMove(from, to))
+                {
+                    continue;
+                }
+                foundWall = true;
+                Require(selection.Begin(testStage, inventory)
+                    && selection.TryMoveCursor(testStage, direction)
+                    && selection.GetSelectedPosition() == to
+                    && testStage.GetPlayer().GetPosition() == from,
+                    "Selection moves through a wall without destroying it");
+                selection.Cancel();
+                break;
+            }
+        }
+        Require(foundWall, "Should find a start Cell adjacent to a wall");
+
+        Stage largeStage(51, 42u);
+        Require(selection.Begin(largeStage, inventory),
+            "Teleport can target on later stages");
+        const CellPosition largeOrigin = largeStage.GetPlayer().GetPosition();
+        CellPosition farTarget{ -1, -1 };
+        for (int y = 0; y < largeStage.GetMaze().GetCellHeight(); ++y)
+        {
+            for (int x = 0; x < largeStage.GetMaze().GetCellWidth(); ++x)
+            {
+                if (std::abs(x - largeOrigin.x) + std::abs(y - largeOrigin.y)
+                    > GameTuning::Teleport::MaximumManhattanDistanceCells)
+                {
+                    farTarget = { x, y };
+                    break;
+                }
+            }
+            if (farTarget.x >= 0) break;
+        }
+        Require(farTarget.x >= 0 && !selection.CanSelect(largeStage, farTarget),
+            "Teleport cursor cannot exceed configured Manhattan radius");
+    }
+
+    void TestKeyboardCursorConfirmAndClock()
+    {
+        GameSession game(SeedWithTeleport());
+        const Stage& stage = game.GetStage();
+        Walk(game, FindPath(stage.GetMaze(), stage.GetEndpoints().start,
+            *stage.GetTeleportPosition()));
+        Require(game.GetInventory().GetCount(ActiveItemType::Teleport) == 1,
+            "Precondition: a Teleport was picked up");
+
+        TeleportSelection selection;
+        Require(selection.Begin(game.GetStage(), game.GetInventory()),
+            "First T begins a keyboard targeting session");
+        const CellPosition origin = game.GetStage().GetPlayer().GetPosition();
+        const float initialClock = game.GetRemainingTime();
+        game.Update(0.5f); // Selecting does not pause the game timer.
+        Require(game.GetRemainingTime() < initialClock
+            && game.GetInventory().GetCount(ActiveItemType::Teleport) == 1,
+            "Aiming must let the clock run and not consume the item");
+
+        bool moved = false;
+        for (const CellPosition direction : Directions)
+        {
+            if (selection.TryMoveCursor(game.GetStage(), direction))
+            {
+                moved = true;
+                break;
+            }
+        }
+        Require(moved && !selection.IsAtOrigin(),
+            "Arrows select a different Cell before second T");
+        const CellPosition selected = selection.GetSelectedPosition();
+        Require(game.TryTeleport(selected),
+            "Second T should teleport to valid selected Cell");
+        selection.Cancel();
+        Require(!selection.IsActive()
+            && game.GetInventory().GetCount(ActiveItemType::Teleport) == 0
+            && game.GetStage().GetPlayer().GetPosition() == selected
+            && selected != origin,
+            "Confirm consumes exactly one Teleport and ends aiming");
+    }
+
     void TestFlowGates()
     {
         GameFlow flow;
@@ -269,6 +414,8 @@ int main()
         TestSpawnRatesAndSeparation();
         TestPickupInvalidTargetsAndTeleport();
         TestCarryOverAndTimeout();
+        TestKeyboardCursorNoItemCancelAndWallCrossing();
+        TestKeyboardCursorConfirmAndClock();
         TestFlowGates();
         std::cout << "Teleport tests passed.\n";
         return 0;
