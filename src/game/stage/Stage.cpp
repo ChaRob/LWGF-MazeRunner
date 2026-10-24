@@ -15,6 +15,7 @@ namespace
     constexpr std::uint32_t TimeOrbSeedOffset = 0xD1B54A35u;
     constexpr std::uint32_t RecallSeedOffset = 0xBF58476Du;
     constexpr std::uint32_t WallBreakSeedOffset = 0x94D049BBu;
+    constexpr std::uint32_t TeleportSeedOffset = 0x632BE59Bu;
 }
 
 int Stage::GetCellSize(std::uint64_t _stageNumber)
@@ -70,7 +71,12 @@ Stage::Stage(std::uint64_t _number, std::uint32_t _seed)
         GameTuning::WallBreak::GetSpawnChance(m_number));
     const bool spawnWallBreak = wallBreakSpawn(wallBreakRandom);
 
-    if (!spawnOrb && !spawnRecall && !spawnWallBreak)
+    std::mt19937 teleportRandom(_seed ^ TeleportSeedOffset);
+    std::bernoulli_distribution teleportSpawn(
+        GameTuning::Teleport::GetSpawnChance(m_number));
+    const bool spawnTeleport = teleportSpawn(teleportRandom);
+
+    if (!spawnOrb && !spawnRecall && !spawnWallBreak && !spawnTeleport)
     {
         return;
     }
@@ -143,6 +149,30 @@ Stage::Stage(std::uint64_t _number, std::uint32_t _seed)
             m_wallBreakPosition = candidates[distribution(wallBreakRandom)];
         }
     }
+    if (spawnTeleport)
+    {
+        // Roll and place Teleport after all earlier items, preserving the
+        // seeded placement of Time Orb, Recall, and Wall Break.
+        for (const auto& occupied : { m_timeOrbPosition, m_recallPosition,
+                m_wallBreakPosition })
+        {
+            if (occupied)
+            {
+                const auto it = std::find(candidates.begin(), candidates.end(),
+                    *occupied);
+                if (it != candidates.end())
+                {
+                    candidates.erase(it);
+                }
+            }
+        }
+        if (!candidates.empty())
+        {
+            std::uniform_int_distribution<std::size_t> distribution(
+                0, candidates.size() - 1);
+            m_teleportPosition = candidates[distribution(teleportRandom)];
+        }
+    }
 }
 
 std::uint64_t Stage::GetNumber() const noexcept
@@ -178,6 +208,50 @@ const std::optional<CellPosition>& Stage::GetRecallPosition() const noexcept
 const std::optional<CellPosition>& Stage::GetWallBreakPosition() const noexcept
 {
     return m_wallBreakPosition;
+}
+
+const std::optional<CellPosition>& Stage::GetTeleportPosition() const noexcept
+{
+    return m_teleportPosition;
+}
+
+bool Stage::TryCollectTeleportAtPlayerPosition() noexcept
+{
+    if (!m_teleportPosition || m_player.GetPosition() != *m_teleportPosition)
+    {
+        return false;
+    }
+
+    m_teleportPosition.reset();
+    return true;
+}
+
+bool Stage::CanTeleportTo(const CellPosition& _destination) const noexcept
+{
+    if (!m_maze.IsCellInside(_destination)
+        || _destination == m_endpoints.goal
+        || _destination == m_player.GetPosition())
+    {
+        return false;
+    }
+
+    const CellPosition& current = m_player.GetPosition();
+    const int distance = std::abs(_destination.x - current.x)
+        + std::abs(_destination.y - current.y);
+    return distance <= GameTuning::Teleport::MaximumManhattanDistanceCells;
+}
+
+bool Stage::TryTeleportPlayer(const CellPosition& _destination) noexcept
+{
+    if (!CanTeleportTo(_destination))
+    {
+        return false;
+    }
+
+    m_player.ResetPosition(_destination);
+    m_timeOrbCollectedOnLastMove = false;
+    CollectTimeOrbAtPlayerPosition();
+    return true;
 }
 
 bool Stage::TryCollectWallBreakAtPlayerPosition() noexcept
@@ -234,11 +308,15 @@ bool Stage::TryMovePlayer(const CellPosition& _direction)
         return false;
     }
 
+    CollectTimeOrbAtPlayerPosition();
+    return m_player.GetPosition() == m_endpoints.goal;
+}
+
+void Stage::CollectTimeOrbAtPlayerPosition() noexcept
+{
     if (m_timeOrbPosition && m_player.GetPosition() == *m_timeOrbPosition)
     {
-        m_timeOrbPosition.reset(); // Exactly one pickup per stage.
+        m_timeOrbPosition.reset(); // Never award the same Time Orb twice.
         m_timeOrbCollectedOnLastMove = true;
     }
-
-    return m_player.GetPosition() == m_endpoints.goal;
 }
