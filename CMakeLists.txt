@@ -13,6 +13,7 @@ add_subdirectory(
 set(MAZERUNNER_GAME_SOURCES
     src/game/GameTuning.h
     src/game/items/ActiveItemInventory.h
+    src/game/items/TeleportSelection.h
     src/game/BestStageRecord.h
     src/game/BestStageRecord.cpp
     src/game/StageClearNotice.h
