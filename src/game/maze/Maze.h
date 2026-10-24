@@ -30,6 +30,8 @@ public:
 
 	bool IsCellInside(const CellPosition& _position) const noexcept;
 	bool CanMove(const CellPosition& _from, const CellPosition& _to) const;
+	bool IsOuterWall(int _tileX, int _tileY) const noexcept;
+	bool TryBreakWall(const CellPosition& _from, const CellPosition& _to);
 
 private:
 	friend class MazeGenerator;
