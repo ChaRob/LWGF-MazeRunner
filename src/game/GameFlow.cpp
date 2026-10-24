@@ -142,10 +142,11 @@ void GameFlow::TryMove(const CellPosition& _direction)
     }
 }
 
-bool GameFlow::TryUseItem(ActiveItemType _item)
+bool GameFlow::TryUseItem(ActiveItemType _item,
+    const CellPosition& _direction)
 {
     return m_state == ScreenState::Playing && m_session
-        && m_session->TryUseItem(_item);
+        && m_session->TryUseItem(_item, _direction);
 }
 
 ScreenState GameFlow::GetState() const noexcept
