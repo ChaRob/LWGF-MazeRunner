@@ -47,39 +47,13 @@ void GameSession::TryMove(const CellPosition& _direction)
         return;
     }
 
-    m_timeOrbCollectedOnLastMove = false;
-    m_recallCollectedOnLastMove = false;
-    m_wallBreakCollectedOnLastMove = false;
-    m_lastTimeOrbGrantedSeconds = 0.0f;
+    ResetPickupEvents();
 
     const CellPosition priorPosition = m_stage.GetPlayer().GetPosition();
     const bool stageCleared = m_stage.TryMovePlayer(_direction);
-    const CellPosition currentPosition = m_stage.GetPlayer().GetPosition();
-    if (currentPosition != priorPosition && m_stage.GetRecallPosition()
-        && currentPosition == *m_stage.GetRecallPosition()
-        && m_inventory.TryAdd(ActiveItemType::Recall))
+    if (m_stage.GetPlayer().GetPosition() != priorPosition)
     {
-        m_recallCollectedOnLastMove = m_stage.TryCollectRecallAtPlayerPosition();
-        std::cout << "Recall collected! Inventory: "
-                  << m_inventory.GetCount(ActiveItemType::Recall) << '\\n';
-    }
-    if (currentPosition != priorPosition && m_stage.GetWallBreakPosition()
-        && currentPosition == *m_stage.GetWallBreakPosition()
-        && m_inventory.TryAdd(ActiveItemType::WallBreak))
-    {
-        m_wallBreakCollectedOnLastMove = m_stage.TryCollectWallBreakAtPlayerPosition();
-        std::cout << "Wall Break collected! Inventory: "
-                  << m_inventory.GetCount(ActiveItemType::WallBreak) << '\n';
-    }
-    if (m_stage.WasTimeOrbCollectedOnLastMove())
-    {
-        m_timeOrbCollectedOnLastMove = true;
-        const float previousTime = m_remainingTime;
-        m_remainingTime = std::min(GameTuning::Time::MaximumSeconds,
-            m_remainingTime + GameTuning::TimeOrb::RecoverySeconds);
-        m_lastTimeOrbGrantedSeconds = m_remainingTime - previousTime;
-        std::cout << "Time Orb collected! Granted: +"
-                  << m_lastTimeOrbGrantedSeconds << "s\n";
+        CollectPickupsAtPlayerPosition();
     }
 
     if (!stageCleared)
@@ -111,6 +85,68 @@ void GameSession::TryMove(const CellPosition& _direction)
               << "x" << m_stage.GetMaze().GetCellHeight() << ")\n";
 }
 
+void GameSession::ResetPickupEvents() noexcept
+{
+    m_timeOrbCollectedOnLastMove = false;
+    m_recallCollectedOnLastMove = false;
+    m_wallBreakCollectedOnLastMove = false;
+    m_teleportCollectedOnLastMove = false;
+    m_lastTimeOrbGrantedSeconds = 0.0f;
+}
+
+void GameSession::CollectPickupsAtPlayerPosition()
+{
+    const CellPosition player = m_stage.GetPlayer().GetPosition();
+    if (m_stage.GetRecallPosition() && player == *m_stage.GetRecallPosition()
+        && m_inventory.TryAdd(ActiveItemType::Recall))
+    {
+        m_recallCollectedOnLastMove = m_stage.TryCollectRecallAtPlayerPosition();
+        std::cout << "Recall collected! Inventory: "
+                  << m_inventory.GetCount(ActiveItemType::Recall) << '\\n';
+    }
+    if (m_stage.GetWallBreakPosition() && player == *m_stage.GetWallBreakPosition()
+        && m_inventory.TryAdd(ActiveItemType::WallBreak))
+    {
+        m_wallBreakCollectedOnLastMove = m_stage.TryCollectWallBreakAtPlayerPosition();
+        std::cout << "Wall Break collected! Inventory: "
+                  << m_inventory.GetCount(ActiveItemType::WallBreak) << '\n';
+    }
+    if (m_stage.GetTeleportPosition() && player == *m_stage.GetTeleportPosition()
+        && m_inventory.TryAdd(ActiveItemType::Teleport))
+    {
+        m_teleportCollectedOnLastMove = m_stage.TryCollectTeleportAtPlayerPosition();
+        std::cout << "Teleport collected! Inventory: "
+                  << m_inventory.GetCount(ActiveItemType::Teleport) << '\n';
+    }
+    if (m_stage.WasTimeOrbCollectedOnLastMove())
+    {
+        m_timeOrbCollectedOnLastMove = true;
+        const float before = m_remainingTime;
+        m_remainingTime = std::min(GameTuning::Time::MaximumSeconds,
+            m_remainingTime + GameTuning::TimeOrb::RecoverySeconds);
+        m_lastTimeOrbGrantedSeconds = m_remainingTime - before;
+        std::cout << "Time Orb collected! Granted: +"
+                  << m_lastTimeOrbGrantedSeconds << "s\n";
+    }
+}
+
+bool GameSession::TryTeleport(const CellPosition& _destination)
+{
+    if (m_status != GameStatus::Playing
+        || m_inventory.GetCount(ActiveItemType::Teleport) == 0
+        || !m_stage.TryTeleportPlayer(_destination))
+    {
+        return false; // No item spent on invalid destination.
+    }
+
+    m_inventory.TryConsume(ActiveItemType::Teleport);
+    ResetPickupEvents();
+    CollectPickupsAtPlayerPosition();
+    std::cout << "Teleported! Inventory: "
+              << m_inventory.GetCount(ActiveItemType::Teleport) << '\n';
+    return true;
+}
+
 bool GameSession::TryUseItem(ActiveItemType _item,
     const CellPosition& _direction)
 {
@@ -130,10 +166,7 @@ bool GameSession::TryUseItem(ActiveItemType _item,
         m_inventory.TryConsume(_item);
         m_remainingTime = std::min(GameTuning::Time::MaximumSeconds,
             std::max(m_remainingTime, m_stageEntryTime));
-        m_timeOrbCollectedOnLastMove = false;
-        m_recallCollectedOnLastMove = false;
-        m_wallBreakCollectedOnLastMove = false;
-        m_lastTimeOrbGrantedSeconds = 0.0f;
+        ResetPickupEvents();
         std::cout << "Recall used! Time: " << m_remainingTime << "s\n";
         return true;
     }
@@ -151,7 +184,7 @@ bool GameSession::TryUseItem(ActiveItemType _item,
         return true;
     }
 
-    return false; // Teleport is planned but not implemented.
+    return false; // Teleport uses TryTeleport(destination).
 }
 
 const Stage& GameSession::GetStage() const noexcept
@@ -207,4 +240,9 @@ float GameSession::GetStageEntryTime() const noexcept
 bool GameSession::WasWallBreakCollectedOnLastMove() const noexcept
 {
     return m_wallBreakCollectedOnLastMove;
+}
+
+bool GameSession::WasTeleportCollectedOnLastMove() const noexcept
+{
+    return m_teleportCollectedOnLastMove;
 }
