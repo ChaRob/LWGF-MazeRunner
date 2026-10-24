@@ -19,7 +19,8 @@ public:
 
     void Update(float _deltaTime);
     void TryMove(const CellPosition& _direction);
-    bool TryUseItem(ActiveItemType _item);
+    bool TryUseItem(ActiveItemType _item,
+        const CellPosition& _direction = { 0, 0 });
 
     const Stage& GetStage() const noexcept;
     GameStatus GetStatus() const noexcept;
@@ -29,6 +30,7 @@ public:
     bool WasTimeOrbCollectedOnLastMove() const noexcept;
     float GetLastTimeOrbGrantedSeconds() const noexcept;
     bool WasRecallCollectedOnLastMove() const noexcept;
+    bool WasWallBreakCollectedOnLastMove() const noexcept;
     const ActiveItemInventory& GetInventory() const noexcept;
     float GetStageEntryTime() const noexcept;
 
@@ -42,5 +44,6 @@ private:
     std::uint64_t m_completedStages = 0;
     bool m_timeOrbCollectedOnLastMove = false;
     bool m_recallCollectedOnLastMove = false;
+    bool m_wallBreakCollectedOnLastMove = false;
     float m_lastTimeOrbGrantedSeconds = 0.0f;
 };
