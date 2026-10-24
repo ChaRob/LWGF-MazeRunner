@@ -5,6 +5,7 @@
 #include "../maze/MazeGenerator.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <stdexcept>
 #include <random>
 #include <vector>
