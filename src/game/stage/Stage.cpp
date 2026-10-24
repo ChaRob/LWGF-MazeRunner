@@ -14,6 +14,7 @@ namespace
     constexpr std::uint32_t EndpointSeedOffset = 0x9E3779B9u;
     constexpr std::uint32_t TimeOrbSeedOffset = 0xD1B54A35u;
     constexpr std::uint32_t RecallSeedOffset = 0xBF58476Du;
+    constexpr std::uint32_t WallBreakSeedOffset = 0x94D049BBu;
 }
 
 int Stage::GetCellSize(std::uint64_t _stageNumber)
@@ -64,7 +65,12 @@ Stage::Stage(std::uint64_t _number, std::uint32_t _seed)
         GameTuning::Recall::GetSpawnChance(m_number));
     const bool spawnRecall = recallSpawn(recallRandom);
 
-    if (!spawnOrb && !spawnRecall)
+    std::mt19937 wallBreakRandom(_seed ^ WallBreakSeedOffset);
+    std::bernoulli_distribution wallBreakSpawn(
+        GameTuning::WallBreak::GetSpawnChance(m_number));
+    const bool spawnWallBreak = wallBreakSpawn(wallBreakRandom);
+
+    if (!spawnOrb && !spawnRecall && !spawnWallBreak)
     {
         return;
     }
@@ -112,6 +118,31 @@ Stage::Stage(std::uint64_t _number, std::uint32_t _seed)
             m_recallPosition = candidates[distribution(recallRandom)];
         }
     }
+
+    if (spawnWallBreak)
+    {
+        // Choose Wall Break after existing items so their spawn RNG and
+        // placement remain unchanged by this feature.
+        auto removePosition = [&candidates](const std::optional<CellPosition>& _item)
+        {
+            if (_item)
+            {
+                const auto it = std::find(candidates.begin(), candidates.end(), *_item);
+                if (it != candidates.end())
+                {
+                    candidates.erase(it);
+                }
+            }
+        };
+        removePosition(m_timeOrbPosition);
+        removePosition(m_recallPosition);
+        if (!candidates.empty())
+        {
+            std::uniform_int_distribution<std::size_t> distribution(
+                0, candidates.size() - 1);
+            m_wallBreakPosition = candidates[distribution(wallBreakRandom)];
+        }
+    }
 }
 
 std::uint64_t Stage::GetNumber() const noexcept
@@ -142,6 +173,29 @@ const std::optional<CellPosition>& Stage::GetTimeOrbPosition() const noexcept
 const std::optional<CellPosition>& Stage::GetRecallPosition() const noexcept
 {
     return m_recallPosition;
+}
+
+const std::optional<CellPosition>& Stage::GetWallBreakPosition() const noexcept
+{
+    return m_wallBreakPosition;
+}
+
+bool Stage::TryCollectWallBreakAtPlayerPosition() noexcept
+{
+    if (!m_wallBreakPosition || m_player.GetPosition() != *m_wallBreakPosition)
+    {
+        return false;
+    }
+
+    m_wallBreakPosition.reset();
+    return true;
+}
+
+bool Stage::TryBreakWall(const CellPosition& _direction)
+{
+    const CellPosition& position = m_player.GetPosition();
+    return m_maze.TryBreakWall(position,
+        { position.x + _direction.x, position.y + _direction.y });
 }
 
 bool Stage::TryCollectRecallAtPlayerPosition() noexcept
