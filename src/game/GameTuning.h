@@ -27,7 +27,7 @@ namespace GameTuning
         inline constexpr double EarlySpawnChance = 0.10;
         inline constexpr double MiddleSpawnChance = 0.15;
         inline constexpr double LateSpawnChance = 0.25;
-        inline constexpr double EndgameSpawnChance = 0.35;
+        inline constexpr double EndgameSpawnChance = 0.40;
         inline constexpr float RecoverySeconds = 5.0f;
         inline constexpr float PickupNoticeSeconds = 1.0f;
 
@@ -54,12 +54,15 @@ namespace GameTuning
         inline constexpr double EarlySpawnChance = 0.05;
         inline constexpr double MiddleSpawnChance = 0.075;
         inline constexpr double LateSpawnChance = 0.10;
+        inline constexpr double EndgameSpawnChance = 0.125;
+        inline constexpr std::uint64_t LateStageEnd = 50;
 
         constexpr double GetSpawnChance(std::uint64_t _stageNumber) noexcept
         {
             return _stageNumber <= EarlyStageEnd ? EarlySpawnChance
                 : _stageNumber <= MiddleStageEnd ? MiddleSpawnChance
-                : LateSpawnChance;
+                : _stageNumber <= LateStageEnd ? LateSpawnChance
+                : EndgameSpawnChance;
         }
     }
 
@@ -72,12 +75,36 @@ namespace GameTuning
         inline constexpr double EarlySpawnChance = 0.05;
         inline constexpr double MiddleSpawnChance = 0.075;
         inline constexpr double LateSpawnChance = 0.10;
+        inline constexpr double EndgameSpawnChance = 0.125;
+        inline constexpr std::uint64_t LateStageEnd = 50;
 
         constexpr double GetSpawnChance(std::uint64_t _stageNumber) noexcept
         {
             return _stageNumber <= EarlyStageEnd ? EarlySpawnChance
                 : _stageNumber <= MiddleStageEnd ? MiddleSpawnChance
-                : LateSpawnChance;
+                : _stageNumber <= LateStageEnd ? LateSpawnChance
+                : EndgameSpawnChance;
+        }
+    }
+
+    namespace Teleport
+    {
+        inline constexpr std::uint64_t EarlyStageEnd = 30;
+        inline constexpr std::uint64_t MiddleStageEnd = 40;
+        inline constexpr std::uint64_t LateStageEnd = 50;
+        // Teleport is more powerful than a wall break. Start rare.
+        inline constexpr double EarlySpawnChance = 0.02;
+        inline constexpr double MiddleSpawnChance = 0.03;
+        inline constexpr double LateSpawnChance = 0.05;
+        inline constexpr double EndgameSpawnChance = 0.075;
+        inline constexpr int MaximumManhattanDistanceCells = 5;
+
+        constexpr double GetSpawnChance(std::uint64_t _stageNumber) noexcept
+        {
+            return _stageNumber <= EarlyStageEnd ? EarlySpawnChance
+                : _stageNumber <= MiddleStageEnd ? MiddleSpawnChance
+                : _stageNumber <= LateStageEnd ? LateSpawnChance
+                : EndgameSpawnChance;
         }
     }
 
@@ -168,3 +195,27 @@ static_assert(GameTuning::WallBreak::EarlySpawnChance >= 0.0
     && GameTuning::WallBreak::LateSpawnChance >= 0.0
     && GameTuning::WallBreak::LateSpawnChance <= 1.0,
     "Wall Break spawn probabilities must be in [0, 1].");
+
+static_assert(GameTuning::Recall::LateStageEnd > GameTuning::Recall::MiddleStageEnd
+    && GameTuning::Recall::EndgameSpawnChance >= 0.0
+    && GameTuning::Recall::EndgameSpawnChance <= 1.0,
+    "Recall endgame tuning must be valid.");
+static_assert(GameTuning::WallBreak::LateStageEnd > GameTuning::WallBreak::MiddleStageEnd
+    && GameTuning::WallBreak::EndgameSpawnChance >= 0.0
+    && GameTuning::WallBreak::EndgameSpawnChance <= 1.0,
+    "Wall Break endgame tuning must be valid.");
+static_assert(GameTuning::Teleport::EarlyStageEnd > 0
+    && GameTuning::Teleport::MiddleStageEnd > GameTuning::Teleport::EarlyStageEnd
+    && GameTuning::Teleport::LateStageEnd > GameTuning::Teleport::MiddleStageEnd,
+    "Teleport stage tiers must increase.");
+static_assert(GameTuning::Teleport::EarlySpawnChance >= 0.0
+    && GameTuning::Teleport::EarlySpawnChance <= 1.0
+    && GameTuning::Teleport::MiddleSpawnChance >= 0.0
+    && GameTuning::Teleport::MiddleSpawnChance <= 1.0
+    && GameTuning::Teleport::LateSpawnChance >= 0.0
+    && GameTuning::Teleport::LateSpawnChance <= 1.0
+    && GameTuning::Teleport::EndgameSpawnChance >= 0.0
+    && GameTuning::Teleport::EndgameSpawnChance <= 1.0,
+    "Teleport spawn probabilities must be in [0, 1].");
+static_assert(GameTuning::Teleport::MaximumManhattanDistanceCells > 1,
+    "Teleport range must be longer than a normal adjacent move.");
