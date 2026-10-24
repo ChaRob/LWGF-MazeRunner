@@ -108,4 +108,11 @@ if(BUILD_TESTING)
     )
     target_compile_features(MazeRunnerRecallTests PRIVATE cxx_std_20)
     add_test(NAME MazeRunnerRecallTests COMMAND MazeRunnerRecallTests)
+
+    add_executable(MazeRunnerWallBreakTests
+        tests/WallBreakTests.cpp
+        ${MAZERUNNER_GAME_SOURCES}
+    )
+    target_compile_features(MazeRunnerWallBreakTests PRIVATE cxx_std_20)
+    add_test(NAME MazeRunnerWallBreakTests COMMAND MazeRunnerWallBreakTests)
 endif()
