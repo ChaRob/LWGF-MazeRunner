@@ -19,6 +19,10 @@ public:
     const std::optional<CellPosition>& GetTimeOrbPosition() const noexcept;
     const std::optional<CellPosition>& GetRecallPosition() const noexcept;
     const std::optional<CellPosition>& GetWallBreakPosition() const noexcept;
+    const std::optional<CellPosition>& GetTeleportPosition() const noexcept;
+    bool TryCollectTeleportAtPlayerPosition() noexcept;
+    bool CanTeleportTo(const CellPosition& _destination) const noexcept;
+    bool TryTeleportPlayer(const CellPosition& _destination) noexcept;
     bool TryCollectWallBreakAtPlayerPosition() noexcept;
     bool TryBreakWall(const CellPosition& _direction);
     bool TryCollectRecallAtPlayerPosition() noexcept;
@@ -37,5 +41,7 @@ private:
     std::optional<CellPosition> m_timeOrbPosition;
     std::optional<CellPosition> m_recallPosition;
     std::optional<CellPosition> m_wallBreakPosition;
+    std::optional<CellPosition> m_teleportPosition;
+    void CollectTimeOrbAtPlayerPosition() noexcept;
     bool m_timeOrbCollectedOnLastMove = false;
 };
