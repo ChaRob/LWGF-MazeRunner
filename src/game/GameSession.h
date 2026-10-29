@@ -2,6 +2,7 @@
 
 #include "stage/Stage.h"
 #include "items/ActiveItemInventory.h"
+#include "RunStatistics.h"
 
 #include <cstdint>
 #include <random>
@@ -34,11 +35,13 @@ public:
     bool WasWallBreakCollectedOnLastMove() const noexcept;
     bool WasTeleportCollectedOnLastMove() const noexcept;
     const ActiveItemInventory& GetInventory() const noexcept;
+    const RunStatistics& GetStatistics() const noexcept;
     float GetStageEntryTime() const noexcept;
 
 private:
     void ResetPickupEvents() noexcept;
     void CollectPickupsAtPlayerPosition();
+    void RecordStageSpawns() noexcept;
 
     std::mt19937 m_random;
     Stage m_stage;
@@ -46,6 +49,7 @@ private:
     float m_remainingTime = 30.0f;
     float m_stageEntryTime = 30.0f;
     ActiveItemInventory m_inventory;
+    RunStatistics m_statistics;
     std::uint64_t m_completedStages = 0;
     bool m_timeOrbCollectedOnLastMove = false;
     bool m_recallCollectedOnLastMove = false;
