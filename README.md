@@ -474,3 +474,12 @@ UI 색상·테마 및 외부 JSON 설정 파일은 포함하지 않는다. 향�
 - **USED**: Recall·Wall Break·Teleport의 **성공한 사용**만 집계합니다. 실패한 Wall Break, 아이템 미보유, Goal로 순간이동 시도, T 선택 모드 취소는 집계하지 않습니다. Time Orb는 자동 획득형이므로 화면에는 '-'로 표시합니다.
 - **화면**: GAME OVER 결과에 Stage Cleared / Stage Reached / Personal Best / Play Time (분:초) / Moves를 표시하고, 네 종류 아이템별 **SPAWN / PICKUP / USED** 표를 렌더링합니다. 메인 메뉴 버튼은 통계 표 아래로 이동합니다.
 - **코드/테스트**: `src/game/RunStatistics.h`의 통계 값은 `GameSession`에서만 갱신하며 `GetStatistics()`로 읽습니다. `MazeRunnerStatisticsTests`를 추가해 스폰 초기화·스테이지 진행·실제 획득/사용·실패 시도·GO/일시정지 제외·타임아웃·새 게임 초기화를 검증합니다.
+
+### V1.1 통계 재조회 및 HUD 정렬
+
+- **메인 메뉴 STATISTICS 버튼**: `START / STATISTICS / EXIT`의 세 메뉴를 표시합니다. STATISTICS를 누르면 가장 최근에 게임 오버한 한 판의 통계를 동일한 표로 보여주고, `BACK` 버튼 또는 ESC로 메인 메뉴에 돌아옵니다. 단순히 플레이를 시작했다가 종료하지 않은 세션은 '마지막 완료된 판'을 덮어쓰지 않습니다.
+- **결과 화면 유지**: GAME OVER 때는 지금 막 끝난 판의 통계가 계속 표시됩니다. 동일한 `DrawRunDetails` 레이아웃을 메인 메뉴의 LAST RUN 화면에서도 사용합니다.
+- **재실행 후에도 유지**: `LastRunStatisticsRecord`가 마지막으로 종료된 판의 결과를 `best_stage.dat`와 같은 사용자 데이터 폴더의 `last_run.dat`에 저장합니다. Windows에서는 `%LOCALAPPDATA%/MazeRunner/last_run.dat`, Linux에서는 `$XDG_DATA_HOME/MazeRunner` 또는 `~/.local/share/MazeRunner`입니다. 버전 헤더·항목 검증·임시 파일 후 교체 저장을 적용했고 읽기/쓰기 실패는 UI에 표시합니다. **최고 기록은 별도의 기존 저장 파일을 그대로 사용**합니다.
+- **새 게임/첫 실행**: 마지막 판이 한 번도 없으면 `NO COMPLETED RUN YET`가 표시됩니다. 새 게임을 시작해도 기존 마지막 판은 유지되고, 해당 게임이 오버되면 새로운 값으로 교체됩니다. 누적 통계나 게임별 히스토리 저장은 V1.1 범위 밖입니다.
+- **플레이 HUD 단일 행**: `SPACE RECALL n/2`(왼쪽), `T TELEPORT n/1`(가운데), `Q + ARROWS BREAK n/2`(오른쪽)가 **같은 Y좌표, 19px 글씨**로 나타납니다. Teleport 선택 중 세부 조작 안내만 별도 행에 표시됩니다.
+- **테스트**: `MazeRunnerLastRunRecordTests`에서 미완료 게임 저장 거부, 정상 저장/재실행 로드, 새 판 덮어쓰기, 손상 데이터 거부, 저장 장애 시 메모리 보존 및 상태 표시를 검증합니다.
