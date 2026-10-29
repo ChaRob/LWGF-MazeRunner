@@ -8,6 +8,7 @@
 #include "game/StageClearNotice.h"
 #include "game/player/HeldMovementInput.h"
 #include "game/player/PlayerMovementVisual.h"
+#include "game/items/TeleportSelection.h"
 
 #include <algorithm>
 #include <cmath>
@@ -59,6 +60,8 @@ namespace
     constexpr Color RecallCoreColor = { 1.0f, 0.90f, 1.0f, 1.0f };
     constexpr Color WallBreakColor = { 1.0f, 0.57f, 0.19f, 1.0f };
     constexpr Color WallBreakCoreColor = { 1.0f, 0.91f, 0.62f, 1.0f };
+    constexpr Color TeleportColor = { 0.97f, 0.34f, 0.57f, 1.0f };
+    constexpr Color TeleportCoreColor = { 1.0f, 0.93f, 0.94f, 1.0f };
     constexpr Color TimerBackground = { 0.25f, 0.25f, 0.25f, 1.0f };
     constexpr Color TimerForeground = { 0.25f, 0.75f, 0.3f, 1.0f };
 
@@ -356,9 +359,53 @@ namespace
             { 1.0f, 0.77f, 0.37f, opacity });
     }
 
+    void DrawTeleportNotice(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, std::string_view _message, float _remainingSeconds)
+    {
+        if (_remainingSeconds <= 0.0f)
+        {
+            return;
+        }
+        const float opacity = std::clamp(_remainingSeconds / 0.2f, 0.0f, 1.0f);
+        constexpr float panelWidth = 262.0f;
+        constexpr float panelHeight = 43.0f;
+        const float panelX = (static_cast<float>(_app.GetWidth()) - panelWidth) * 0.5f;
+        const float panelY = static_cast<float>(_app.GetHeight()) - 269.0f;
+        _renderer.DrawRect(panelX, panelY, panelWidth, panelHeight,
+            { 0.24f, 0.08f, 0.14f, opacity * 0.88f });
+        DrawCenteredText(_renderer, _font, _message,
+            panelX + panelWidth * 0.5f, panelY + 11.0f, 23.0f,
+            { 1.0f, 0.69f, 0.82f, opacity });
+    }
+
+    struct MazeViewLayout
+    {
+        float tileSize = 0.0f;
+        float startX = 0.0f;
+        float startY = 0.0f;
+    };
+
+    MazeViewLayout GetMazeViewLayout(const Application& _app, const Maze& _maze)
+    {
+        constexpr float margin = 32.0f;
+        constexpr float hudHeight = 130.0f;
+        const float availableWidth = static_cast<float>(_app.GetWidth()) - margin * 2.0f;
+        const float availableHeight =
+            static_cast<float>(_app.GetHeight()) - margin * 2.0f - hudHeight;
+        const float tileSize = std::max(1.0f, std::floor(std::min(
+            availableWidth / static_cast<float>(_maze.GetTileWidth()),
+            availableHeight / static_cast<float>(_maze.GetTileHeight()))));
+        const float mazeWidth = static_cast<float>(_maze.GetTileWidth()) * tileSize;
+        const float mazeHeight = static_cast<float>(_maze.GetTileHeight()) * tileSize;
+        return { tileSize,
+            (static_cast<float>(_app.GetWidth()) - mazeWidth) * 0.5f,
+            (static_cast<float>(_app.GetHeight()) - hudHeight - mazeHeight) * 0.5f };
+    }
+
     void DrawGameplay(Renderer2D& _renderer, const Font& _font,
         const Application& _app, const GameSession& _game,
-        const BestStageRecord& _record, const PlayerMovementVisual& _visual)
+        const BestStageRecord& _record, const PlayerMovementVisual& _visual,
+        const TeleportSelection& _teleportSelection)
     {
         const Stage& stage = _game.GetStage();
         const Maze& maze = stage.GetMaze();
@@ -366,19 +413,11 @@ namespace
         const VisualCellPosition playerPosition = _visual.GetPosition();
 
         const float margin = 32.0f;
-        const float hudHeight = 86.0f;
         const float availableWidth = static_cast<float>(_app.GetWidth()) - margin * 2.0f;
-        const float availableHeight =
-            static_cast<float>(_app.GetHeight()) - margin * 2.0f - hudHeight;
-        const float tileSize = std::floor(std::min(
-            availableWidth / static_cast<float>(maze.GetTileWidth()),
-            availableHeight / static_cast<float>(maze.GetTileHeight())));
-
-        const float mazeWidth = static_cast<float>(maze.GetTileWidth()) * tileSize;
-        const float mazeHeight = static_cast<float>(maze.GetTileHeight()) * tileSize;
-        const float startX = (static_cast<float>(_app.GetWidth()) - mazeWidth) * 0.5f;
-        const float startY =
-            (static_cast<float>(_app.GetHeight()) - hudHeight - mazeHeight) * 0.5f;
+        const MazeViewLayout layout = GetMazeViewLayout(_app, maze);
+        const float tileSize = layout.tileSize;
+        const float startX = layout.startX;
+        const float startY = layout.startY;
 
         for (int y = 0; y < maze.GetTileHeight(); ++y)
         {
@@ -389,6 +428,27 @@ namespace
                     _renderer.DrawRect(startX + x * tileSize, startY + y * tileSize,
                         tileSize, tileSize,
                         maze.IsOuterWall(x, y) ? OuterWallColor : WallColor);
+                }
+            }
+        }
+
+        if (_teleportSelection.IsActive())
+        {
+            // Soft highlighted squares show valid destinations; there is no
+            // pause or wall/path modification while aiming.
+            for (int y = 0; y < maze.GetCellHeight(); ++y)
+            {
+                for (int x = 0; x < maze.GetCellWidth(); ++x)
+                {
+                    if (stage.CanTeleportTo({ x, y }))
+                    {
+                        const float inset = tileSize * 0.13f;
+                        _renderer.DrawRect(
+                            startX + (x * 2 + 1) * tileSize + inset,
+                            startY + (y * 2 + 1) * tileSize + inset,
+                            tileSize - 2.0f * inset, tileSize - 2.0f * inset,
+                            { 1.0f, 0.33f, 0.65f, 0.26f });
+                    }
                 }
             }
         }
@@ -450,6 +510,33 @@ namespace
                 coreSize, coreSize, WallBreakCoreColor);
         }
 
+        if (stage.GetTeleportPosition())
+        {
+            const CellPosition item = *stage.GetTeleportPosition();
+            const float itemX = startX + static_cast<float>(item.x * 2 + 1) * tileSize;
+            const float itemY = startY + static_cast<float>(item.y * 2 + 1) * tileSize;
+            const float inset = tileSize * 0.08f;
+            _renderer.DrawRect(itemX + inset, itemY + inset,
+                tileSize - inset * 2.0f, tileSize - inset * 2.0f, TeleportColor);
+            const float coreSize = tileSize * 0.35f;
+            const float coreInset = (tileSize - coreSize) * 0.5f;
+            _renderer.DrawRect(itemX + coreInset, itemY + coreInset,
+                coreSize, coreSize, TeleportCoreColor);
+        }
+
+        // White-pink selection outline includes the player's own cancel Cell.
+        if (_teleportSelection.IsActive())
+        {
+            const CellPosition cursor = _teleportSelection.GetSelectedPosition();
+            const float cx = startX + (cursor.x * 2 + 1) * tileSize;
+            const float cy = startY + (cursor.y * 2 + 1) * tileSize;
+            const float border = std::max(1.0f, tileSize * 0.14f);
+            _renderer.DrawRect(cx, cy, tileSize, border, TeleportCoreColor);
+            _renderer.DrawRect(cx, cy + tileSize - border, tileSize, border, TeleportCoreColor);
+            _renderer.DrawRect(cx, cy, border, tileSize, TeleportCoreColor);
+            _renderer.DrawRect(cx + tileSize - border, cy, border, tileSize, TeleportCoreColor);
+        }
+
         const float playerSize = tileSize * 0.7f;
         const float playerOffset = (tileSize - playerSize) * 0.5f;
         _renderer.DrawRect(
@@ -475,6 +562,25 @@ namespace
         _renderer.DrawText(_font, wallBreakHud,
             static_cast<float>(_app.GetWidth()) - margin - wallHudWidth,
             static_cast<float>(_app.GetHeight()) - 96.0f, 19.0f, WallBreakColor);
+
+        char teleportHud[100] = {};
+        std::snprintf(teleportHud, sizeof(teleportHud), "T  TELEPORT %d/%d",
+            _game.GetInventory().GetCount(ActiveItemType::Teleport),
+            ActiveItemInventory::GetCapacity(ActiveItemType::Teleport));
+        DrawCenteredText(_renderer, _font, teleportHud,
+            static_cast<float>(_app.GetWidth()) * 0.5f,
+            static_cast<float>(_app.GetHeight()) - 126.0f,
+            18.0f, TeleportColor);
+        if (_teleportSelection.IsActive())
+        {
+            DrawCenteredText(_renderer, _font,
+                _teleportSelection.IsAtOrigin()
+                    ? "ARROWS SELECT    T CANCEL"
+                    : "ARROWS SELECT    T CONFIRM",
+                static_cast<float>(_app.GetWidth()) * 0.5f,
+                static_cast<float>(_app.GetHeight()) - 150.0f,
+                17.0f, TeleportCoreColor);
+        }
 
         const float labelY = static_cast<float>(_app.GetHeight()) - 40.0f;
         const float textHeight = 28.0f;
@@ -542,6 +648,8 @@ static int RunGame(const char* _argv0)
     bool bestNoticeShownThisRun = false;
     GameFlow flow;
     HeldMovementInput movementInput;
+    HeldMovementInput teleportCursorInput;
+    TeleportSelection teleportSelection;
     PlayerMovementVisual movementVisual;
     StageClearNotice stageClearNotice;
     float orbNoticeRemainingSeconds = 0.0f;
@@ -550,6 +658,8 @@ static int RunGame(const char* _argv0)
     std::string recallNoticeText;
     float wallBreakNoticeRemainingSeconds = 0.0f;
     std::string wallBreakNoticeText;
+    float teleportNoticeRemainingSeconds = 0.0f;
+    std::string teleportNoticeText;
 
     while (app.IsRunning())
     {
@@ -572,6 +682,8 @@ static int RunGame(const char* _argv0)
                 std::max(0.0f, recallNoticeRemainingSeconds - app.GetDeltaTime());
             wallBreakNoticeRemainingSeconds =
                 std::max(0.0f, wallBreakNoticeRemainingSeconds - app.GetDeltaTime());
+            teleportNoticeRemainingSeconds =
+                std::max(0.0f, teleportNoticeRemainingSeconds - app.GetDeltaTime());
         }
         if (flow.GetState() == ScreenState::MainMenu
             || flow.GetState() == ScreenState::Result)
@@ -580,6 +692,7 @@ static int RunGame(const char* _argv0)
             orbNoticeRemainingSeconds = 0.0f;
             recallNoticeRemainingSeconds = 0.0f;
             wallBreakNoticeRemainingSeconds = 0.0f;
+            teleportNoticeRemainingSeconds = 0.0f;
         }
 
         if (inputState == ScreenState::MainMenu
@@ -592,6 +705,7 @@ static int RunGame(const char* _argv0)
                 orbNoticeRemainingSeconds = 0.0f;
                 recallNoticeRemainingSeconds = 0.0f;
                 wallBreakNoticeRemainingSeconds = 0.0f;
+                teleportNoticeRemainingSeconds = 0.0f;
             }
             else if (IsClicked(app, LowerButton(app.GetWidth(), app.GetHeight())))
             {
@@ -605,11 +719,90 @@ static int RunGame(const char* _argv0)
             {
                 flow.Pause();
             }
+            else if (teleportSelection.IsActive())
+            {
+                // Timer keeps running, but arrows select a Cell only.
+                movementInput.RequireRelease();
+                if (app.IsKeyPressed(Key::T))
+                {
+                    if (teleportSelection.IsAtOrigin())
+                    {
+                        teleportSelection.Cancel(); // No item consumed.
+                        teleportCursorInput.RequireRelease();
+                        teleportNoticeText = "TELEPORT CANCELLED";
+                        teleportNoticeRemainingSeconds = 1.0f;
+                    }
+                    else if (flow.TryTeleport(teleportSelection.GetSelectedPosition()))
+                    {
+                        teleportSelection.Cancel();
+                        teleportCursorInput.RequireRelease();
+                        movementVisual.Reset(
+                            flow.GetSession()->GetStage().GetPlayer().GetPosition());
+                        teleportNoticeText = "TELEPORT USED";
+                        teleportNoticeRemainingSeconds = 1.0f;
+                        const GameSession& currentGame = *flow.GetSession();
+                        if (currentGame.WasTimeOrbCollectedOnLastMove())
+                        {
+                            orbNoticeGrantedSeconds = currentGame.GetLastTimeOrbGrantedSeconds();
+                            orbNoticeRemainingSeconds =
+                                GameTuning::TimeOrb::PickupNoticeSeconds;
+                        }
+                        if (currentGame.WasRecallCollectedOnLastMove())
+                        {
+                            recallNoticeText = "RECALL +1";
+                            recallNoticeRemainingSeconds = 1.0f;
+                        }
+                        if (currentGame.WasWallBreakCollectedOnLastMove())
+                        {
+                            wallBreakNoticeText = "WALL BREAK +1";
+                            wallBreakNoticeRemainingSeconds = 1.0f;
+                        }
+                        if (currentGame.WasTeleportCollectedOnLastMove())
+                        {
+                            teleportNoticeText = "TELEPORT +1";
+                            teleportNoticeRemainingSeconds = 1.0f;
+                        }
+                    }
+                }
+                else
+                {
+                    const Stage& stage = flow.GetSession()->GetStage();
+                    const CellPosition cursor = teleportSelection.GetSelectedPosition();
+                    const MovementAvailability available =
+                    {
+                        teleportSelection.CanSelect(stage, { cursor.x, cursor.y + 1 }),
+                        teleportSelection.CanSelect(stage, { cursor.x, cursor.y - 1 }),
+                        teleportSelection.CanSelect(stage, { cursor.x - 1, cursor.y }),
+                        teleportSelection.CanSelect(stage, { cursor.x + 1, cursor.y })
+                    };
+                    const MovementButtons buttons =
+                    {
+                        app.IsKeyDown(Key::UP),
+                        app.IsKeyDown(Key::DOWN),
+                        app.IsKeyDown(Key::LEFT),
+                        app.IsKeyDown(Key::RIGHT)
+                    };
+                    const CellPosition direction =
+                        teleportCursorInput.Update(app.GetDeltaTime(), buttons, available);
+                    if (direction != CellPosition{ 0, 0 })
+                    {
+                        teleportSelection.TryMoveCursor(stage, direction);
+                    }
+                }
+            }
+            else if (app.IsKeyPressed(Key::T)
+                && flow.GetSession()->GetInventory().GetCount(ActiveItemType::Teleport) > 0)
+            {
+                if (teleportSelection.Begin(flow.GetSession()->GetStage(),
+                    flow.GetSession()->GetInventory()))
+                {
+                    movementInput.RequireRelease();
+                    teleportCursorInput.RequireRelease();
+                }
+            }
             else if (app.IsKeyPressed(Key::SPACE)
                 && flow.TryUseItem(ActiveItemType::Recall))
             {
-                // Recall resets logical position without walking the maze.
-                // Reset visual interpolation and require fresh movement input.
                 movementVisual.Reset(flow.GetSession()->GetStage().GetPlayer().GetPosition());
                 movementInput.RequireRelease();
                 recallNoticeText = "RECALL USED";
@@ -681,6 +874,11 @@ static int RunGame(const char* _argv0)
                         wallBreakNoticeText = "WALL BREAK +1";
                         wallBreakNoticeRemainingSeconds = 1.0f;
                     }
+                    if (currentGame.WasTeleportCollectedOnLastMove())
+                    {
+                        teleportNoticeText = "TELEPORT +1";
+                        teleportNoticeRemainingSeconds = 1.0f;
+                    }
                     if (currentGame.WasRecallCollectedOnLastMove())
                     {
                         recallNoticeText = "RECALL +1";
@@ -706,6 +904,7 @@ static int RunGame(const char* _argv0)
                         }
                         recallNoticeRemainingSeconds = 0.0f;
                         wallBreakNoticeRemainingSeconds = 0.0f;
+                        teleportNoticeRemainingSeconds = 0.0f;
                         stageClearNotice.Show({
                             currentGame.GetCompletedStages(),
                             std::max(0.0f, currentGame.GetRemainingTime() - previousTime),
@@ -755,6 +954,8 @@ static int RunGame(const char* _argv0)
         {
             // Pause, result, fade and countdown all require a fresh key release.
             movementInput.RequireRelease();
+            teleportCursorInput.RequireRelease();
+            teleportSelection.Cancel();
             // Pause / countdown / restart must never retain an in-flight animation.
             if (flow.GetSession())
             {
@@ -796,7 +997,8 @@ static int RunGame(const char* _argv0)
         }
         else if (visibleState == ScreenState::Playing && flow.GetSession())
         {
-            DrawGameplay(renderer, hudFont, app, *flow.GetSession(), bestRecord, movementVisual);
+            DrawGameplay(renderer, hudFont, app, *flow.GetSession(), bestRecord,
+                movementVisual, teleportSelection);
             DrawStageClearNotice(renderer, hudFont, app, stageClearNotice);
             DrawTimeOrbPickupNotice(renderer, hudFont, app,
                 orbNoticeGrantedSeconds, orbNoticeRemainingSeconds);
@@ -804,6 +1006,8 @@ static int RunGame(const char* _argv0)
                 recallNoticeRemainingSeconds);
             DrawWallBreakNotice(renderer, hudFont, app, wallBreakNoticeText,
                 wallBreakNoticeRemainingSeconds);
+            DrawTeleportNotice(renderer, hudFont, app, teleportNoticeText,
+                teleportNoticeRemainingSeconds);
         }
 
         const float fadeAlpha = flow.GetFadeAlpha();

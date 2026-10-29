@@ -30,6 +30,7 @@ public:
     void Resume();
     void ReturnToMainMenu();
     void TryMove(const CellPosition& _direction);
+    bool TryTeleport(const CellPosition& _destination);
     bool TryUseItem(ActiveItemType _item,
         const CellPosition& _direction = { 0, 0 });
 
