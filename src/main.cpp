@@ -4,6 +4,7 @@
 
 #include "game/GameFlow.h"
 #include "game/BestStageRecord.h"
+#include "game/LastRunStatisticsRecord.h"
 #include "game/GameTuning.h"
 #include "game/StageClearNotice.h"
 #include "game/player/HeldMovementInput.h"
@@ -92,9 +93,15 @@ namespace
         return { _width * 0.5f - 145.0f, _height * 0.5f - 100.0f, 290.0f, 58.0f };
     }
 
+    ButtonBounds MainMenuExitButton(int _width, int _height)
+    {
+        return { _width * 0.5f - 145.0f, _height * 0.5f - 180.0f, 290.0f, 58.0f };
+    }
+
     ButtonBounds ResultButton(int _width, int _height)
     {
-        return { _width * 0.5f - 145.0f, _height * 0.5f - 135.0f, 290.0f, 58.0f };
+        // Leave space for the per-run statistics panel above the menu button.
+        return { _width * 0.5f - 145.0f, _height * 0.5f - 283.0f, 290.0f, 58.0f };
     }
 
     bool IsClicked(const Application& _app, const ButtonBounds& _bounds)
@@ -136,9 +143,12 @@ namespace
             centerX, centerY + 88.0f, 21.0f, SubtleTextColor);
 
         const ButtonBounds start = UpperButton(_app.GetWidth(), _app.GetHeight());
-        const ButtonBounds exit = LowerButton(_app.GetWidth(), _app.GetHeight());
+        const ButtonBounds statistics = LowerButton(_app.GetWidth(), _app.GetHeight());
+        const ButtonBounds exit = MainMenuExitButton(_app.GetWidth(), _app.GetHeight());
         DrawButton(_renderer, _font, "START", start,
             start.Contains(_app.GetMouseX(), _app.GetMouseY()));
+        DrawButton(_renderer, _font, "STATISTICS", statistics,
+            statistics.Contains(_app.GetMouseX(), _app.GetMouseY()));
         DrawButton(_renderer, _font, "EXIT", exit,
             exit.Contains(_app.GetMouseX(), _app.GetMouseY()));
 
@@ -146,11 +156,11 @@ namespace
         std::snprintf(bestText, sizeof(bestText), "PERSONAL BEST  %llu CLEARED",
             static_cast<unsigned long long>(_record.GetBest()));
         DrawCenteredText(_renderer, _font, bestText,
-            centerX, centerY - 150.0f, 24.0f, SubtleTextColor);
+            centerX, centerY - 251.0f, 24.0f, SubtleTextColor);
         if (_record.HasStorageError())
         {
             DrawCenteredText(_renderer, _font, "RECORD SAVE ERROR",
-                centerX, centerY - 183.0f, 19.0f, HighlightColor);
+                centerX, centerY - 282.0f, 19.0f, HighlightColor);
         }
     }
 
@@ -173,35 +183,158 @@ namespace
             menu.Contains(_app.GetMouseX(), _app.GetMouseY()));
     }
 
-    void DrawResult(Renderer2D& _renderer, const Font& _font,
-        const Application& _app, const GameSession& _game,
-        const BestStageRecord& _record)
+    void DrawRunDetails(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, const RunResultSnapshot& _run,
+        const BestStageRecord& _record, bool _gameOver, bool _statsStorageError)
     {
         const float centerX = _app.GetWidth() * 0.5f;
         const float centerY = _app.GetHeight() * 0.5f;
-        DrawCenteredText(_renderer, _font, "GAME OVER",
-            centerX, centerY + 136.0f, 64.0f, HighlightColor);
+
+        DrawCenteredText(_renderer, _font, _gameOver ? "GAME OVER" : "LAST RUN",
+            centerX, centerY + 258.0f, 57.0f, HighlightColor);
 
         char clearedText[96] = {};
         std::snprintf(clearedText, sizeof(clearedText), "STAGES CLEARED  %llu",
-            static_cast<unsigned long long>(_game.GetCompletedStages()));
+            static_cast<unsigned long long>(_run.completedStages));
         DrawCenteredText(_renderer, _font, clearedText,
-            centerX, centerY + 72.0f, 27.0f, TextColor);
+            centerX, centerY + 201.0f, 26.0f, TextColor);
+
+        char reachedText[96] = {};
+        std::snprintf(reachedText, sizeof(reachedText), "STAGE REACHED   %llu",
+            static_cast<unsigned long long>(_run.reachedStage));
+        DrawCenteredText(_renderer, _font, reachedText,
+            centerX, centerY + 163.0f, 22.0f, SubtleTextColor);
 
         char bestText[96] = {};
-        std::snprintf(bestText, sizeof(bestText), "PERSONAL BEST  %llu",
+        std::snprintf(bestText, sizeof(bestText), "PERSONAL BEST   %llu",
             static_cast<unsigned long long>(_record.GetBest()));
         DrawCenteredText(_renderer, _font, bestText,
-            centerX, centerY + 29.0f, 31.0f, HighlightColor);
+            centerX, centerY + 126.0f, 25.0f, HighlightColor);
+
+        // Seconds are rounded down for display; only the actually active
+        // Playing state contributes to this duration (not pause or countdown).
+        const std::uint64_t elapsed =
+            static_cast<std::uint64_t>(_run.playingSeconds);
+        char summary[160] = {};
+        std::snprintf(summary, sizeof(summary),
+            "PLAY TIME  %02llu:%02llu     MOVES  %llu",
+            static_cast<unsigned long long>(elapsed / 60),
+            static_cast<unsigned long long>(elapsed % 60),
+            static_cast<unsigned long long>(_run.successfulMoves));
+        DrawCenteredText(_renderer, _font, summary,
+            centerX, centerY + 77.0f, 22.0f, TextColor);
+
+        constexpr float panelWidth = 780.0f;
+        constexpr float panelHeight = 196.0f;
+        const float panelX = centerX - panelWidth * 0.5f;
+        const float panelY = centerY - 137.0f;
+        _renderer.DrawRect(panelX, panelY, panelWidth, panelHeight,
+            { 0.10f, 0.14f, 0.20f, 1.0f });
+        _renderer.DrawRect(panelX, panelY + panelHeight - 3.0f,
+            panelWidth, 3.0f, HighlightColor);
+
+        const float labelX = panelX + 31.0f;
+        const float spawnedX = panelX + 300.0f;
+        const float pickedUpX = panelX + 464.0f;
+        const float usedX = panelX + 630.0f;
+        const float headerY = centerY + 27.0f;
+        _renderer.DrawText(_font, "ITEM", labelX, headerY, 19.0f, SubtleTextColor);
+        _renderer.DrawText(_font, "SPAWN", spawnedX, headerY, 19.0f, SubtleTextColor);
+        _renderer.DrawText(_font, "PICKUP", pickedUpX, headerY, 19.0f, SubtleTextColor);
+        _renderer.DrawText(_font, "USED", usedX, headerY, 19.0f, SubtleTextColor);
+
+        struct ItemResultRow
+        {
+            const char* name;
+            RunItemType type;
+            Color color;
+            bool isConsumable;
+        };
+        const ItemResultRow rows[] =
+        {
+            { "TIME ORB", RunItemType::TimeOrb, TimeOrbColor, false },
+            { "RECALL", RunItemType::Recall, RecallColor, true },
+            { "WALL BREAK", RunItemType::WallBreak, WallBreakColor, true },
+            { "TELEPORT", RunItemType::Teleport, TeleportColor, true }
+        };
+        for (int i = 0; i < 4; ++i)
+        {
+            const ItemResultRow& row = rows[i];
+            const RunItemCounters totals = _run.GetItem(row.type);
+            const float y = centerY - 9.0f - 35.0f * static_cast<float>(i);
+            _renderer.DrawText(_font, row.name, labelX, y, 21.0f, row.color);
+
+            char count[40] = {};
+            std::snprintf(count, sizeof(count), "%llu",
+                static_cast<unsigned long long>(totals.spawned));
+            _renderer.DrawText(_font, count, spawnedX, y, 21.0f, TextColor);
+
+            std::snprintf(count, sizeof(count), "%llu",
+                static_cast<unsigned long long>(totals.pickedUp));
+            _renderer.DrawText(_font, count, pickedUpX, y, 21.0f, TextColor);
+
+            if (row.isConsumable)
+            {
+                std::snprintf(count, sizeof(count), "%llu",
+                    static_cast<unsigned long long>(totals.used));
+            }
+            else
+            {
+                std::snprintf(count, sizeof(count), "-");
+            }
+            _renderer.DrawText(_font, count, usedX, y, 21.0f, TextColor);
+        }
+
         if (_record.HasStorageError())
         {
             DrawCenteredText(_renderer, _font, "RECORD SAVE ERROR",
-                centerX, centerY - 25.0f, 19.0f, HighlightColor);
+                centerX, centerY - 170.0f, 19.0f, HighlightColor);
+        }
+
+        if (_statsStorageError)
+        {
+            DrawCenteredText(_renderer, _font, "STATS SAVE ERROR",
+                centerX, centerY - 193.0f, 18.0f, HighlightColor);
         }
 
         const ButtonBounds menu = ResultButton(_app.GetWidth(), _app.GetHeight());
-        DrawButton(_renderer, _font, "MAIN MENU", menu,
+        DrawButton(_renderer, _font, _gameOver ? "MAIN MENU" : "BACK", menu,
             menu.Contains(_app.GetMouseX(), _app.GetMouseY()));
+    }
+
+    void DrawResult(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, const GameSession& _game,
+        const BestStageRecord& _record, bool _statsStorageError)
+    {
+        DrawRunDetails(_renderer, _font, _app, CaptureRunResult(_game),
+            _record, true, _statsStorageError);
+    }
+
+    void DrawLastRunStatistics(Renderer2D& _renderer, const Font& _font,
+        const Application& _app, const LastRunStatisticsRecord& _lastRun,
+        const BestStageRecord& _record)
+    {
+        if (_lastRun.GetLastRun())
+        {
+            DrawRunDetails(_renderer, _font, _app, *_lastRun.GetLastRun(),
+                _record, false, _lastRun.HasStorageError());
+            return;
+        }
+
+        const float centerX = _app.GetWidth() * 0.5f;
+        const float centerY = _app.GetHeight() * 0.5f;
+        DrawCenteredText(_renderer, _font, "LAST RUN",
+            centerX, centerY + 182.0f, 60.0f, HighlightColor);
+        DrawCenteredText(_renderer, _font, "NO COMPLETED RUN YET",
+            centerX, centerY + 37.0f, 27.0f, SubtleTextColor);
+        if (_lastRun.HasStorageError())
+        {
+            DrawCenteredText(_renderer, _font, "STATS FILE ERROR",
+                centerX, centerY - 12.0f, 20.0f, HighlightColor);
+        }
+        const ButtonBounds back = ResultButton(_app.GetWidth(), _app.GetHeight());
+        DrawButton(_renderer, _font, "BACK", back,
+            back.Contains(_app.GetMouseX(), _app.GetMouseY()));
     }
 
     void DrawCountdownScreen(Renderer2D& _renderer, const Font& _font,
@@ -569,8 +702,8 @@ namespace
             ActiveItemInventory::GetCapacity(ActiveItemType::Teleport));
         DrawCenteredText(_renderer, _font, teleportHud,
             static_cast<float>(_app.GetWidth()) * 0.5f,
-            static_cast<float>(_app.GetHeight()) - 126.0f,
-            18.0f, TeleportColor);
+            static_cast<float>(_app.GetHeight()) - 96.0f,
+            19.0f, TeleportColor);
         if (_teleportSelection.IsActive())
         {
             DrawCenteredText(_renderer, _font,
@@ -645,6 +778,8 @@ static int RunGame(const char* _argv0)
     }
 
     BestStageRecord bestRecord;
+    LastRunStatisticsRecord lastRunRecord;
+    bool showingStatistics = false;
     bool bestNoticeShownThisRun = false;
     GameFlow flow;
     HeldMovementInput movementInput;
@@ -668,6 +803,13 @@ static int RunGame(const char* _argv0)
         const ScreenState inputState = flow.GetState();
         // Update gameplay before input, so timeout wins over moving onto Goal.
         flow.Update(app.GetDeltaTime());
+        // Capture Game Over once, before Flow releases the GameSession on
+        // return to main menu. Results remain available after a restart.
+        if (inputState == ScreenState::Playing
+            && flow.GetState() == ScreenState::Result && flow.GetSession())
+        {
+            lastRunRecord.SaveRun(*flow.GetSession());
+        }
         // Rendering advances continuously between logical steps.
         if (inputState == ScreenState::Playing && flow.GetState() == ScreenState::Playing)
         {
@@ -698,7 +840,15 @@ static int RunGame(const char* _argv0)
         if (inputState == ScreenState::MainMenu
             && flow.GetState() == ScreenState::MainMenu)
         {
-            if (IsClicked(app, UpperButton(app.GetWidth(), app.GetHeight())))
+            if (showingStatistics)
+            {
+                if (IsClicked(app, ResultButton(app.GetWidth(), app.GetHeight()))
+                    || app.IsKeyPressed(Key::ESCAPE))
+                {
+                    showingStatistics = false;
+                }
+            }
+            else if (IsClicked(app, UpperButton(app.GetWidth(), app.GetHeight())))
             {
                 flow.StartGame();
                 bestNoticeShownThisRun = false;
@@ -708,6 +858,10 @@ static int RunGame(const char* _argv0)
                 teleportNoticeRemainingSeconds = 0.0f;
             }
             else if (IsClicked(app, LowerButton(app.GetWidth(), app.GetHeight())))
+            {
+                showingStatistics = true;
+            }
+            else if (IsClicked(app, MainMenuExitButton(app.GetWidth(), app.GetHeight())))
             {
                 app.RequestClose();
             }
@@ -975,7 +1129,15 @@ static int RunGame(const char* _argv0)
         const ScreenState visibleState = flow.GetVisibleState();
         if (visibleState == ScreenState::MainMenu)
         {
-            DrawMainMenu(renderer, hudFont, app, bestRecord);
+            if (showingStatistics && flow.GetState() == ScreenState::MainMenu)
+            {
+                DrawLastRunStatistics(renderer, hudFont, app,
+                    lastRunRecord, bestRecord);
+            }
+            else
+            {
+                DrawMainMenu(renderer, hudFont, app, bestRecord);
+            }
         }
         else if (visibleState == ScreenState::Paused)
         {
@@ -983,7 +1145,8 @@ static int RunGame(const char* _argv0)
         }
         else if (visibleState == ScreenState::Result && flow.GetSession())
         {
-            DrawResult(renderer, hudFont, app, *flow.GetSession(), bestRecord);
+            DrawResult(renderer, hudFont, app, *flow.GetSession(),
+                bestRecord, lastRunRecord.HasStorageError());
         }
         else if (visibleState == ScreenState::Countdown
             || visibleState == ScreenState::Go)
