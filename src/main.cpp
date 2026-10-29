@@ -94,7 +94,8 @@ namespace
 
     ButtonBounds ResultButton(int _width, int _height)
     {
-        return { _width * 0.5f - 145.0f, _height * 0.5f - 135.0f, 290.0f, 58.0f };
+        // Leave space for the per-run statistics panel above the menu button.
+        return { _width * 0.5f - 145.0f, _height * 0.5f - 283.0f, 290.0f, 58.0f };
     }
 
     bool IsClicked(const Application& _app, const ButtonBounds& _bounds)
@@ -179,24 +180,107 @@ namespace
     {
         const float centerX = _app.GetWidth() * 0.5f;
         const float centerY = _app.GetHeight() * 0.5f;
+        const RunStatistics& statistics = _game.GetStatistics();
+
         DrawCenteredText(_renderer, _font, "GAME OVER",
-            centerX, centerY + 136.0f, 64.0f, HighlightColor);
+            centerX, centerY + 258.0f, 57.0f, HighlightColor);
 
         char clearedText[96] = {};
         std::snprintf(clearedText, sizeof(clearedText), "STAGES CLEARED  %llu",
             static_cast<unsigned long long>(_game.GetCompletedStages()));
         DrawCenteredText(_renderer, _font, clearedText,
-            centerX, centerY + 72.0f, 27.0f, TextColor);
+            centerX, centerY + 201.0f, 26.0f, TextColor);
+
+        char reachedText[96] = {};
+        std::snprintf(reachedText, sizeof(reachedText), "STAGE REACHED   %llu",
+            static_cast<unsigned long long>(_game.GetStage().GetNumber()));
+        DrawCenteredText(_renderer, _font, reachedText,
+            centerX, centerY + 163.0f, 22.0f, SubtleTextColor);
 
         char bestText[96] = {};
-        std::snprintf(bestText, sizeof(bestText), "PERSONAL BEST  %llu",
+        std::snprintf(bestText, sizeof(bestText), "PERSONAL BEST   %llu",
             static_cast<unsigned long long>(_record.GetBest()));
         DrawCenteredText(_renderer, _font, bestText,
-            centerX, centerY + 29.0f, 31.0f, HighlightColor);
+            centerX, centerY + 126.0f, 25.0f, HighlightColor);
+
+        // Seconds are rounded down for display; only the actually active
+        // Playing state contributes to this duration (not pause or countdown).
+        const std::uint64_t elapsed =
+            static_cast<std::uint64_t>(statistics.GetPlayingSeconds());
+        char summary[160] = {};
+        std::snprintf(summary, sizeof(summary),
+            "PLAY TIME  %02llu:%02llu     MOVES  %llu",
+            static_cast<unsigned long long>(elapsed / 60),
+            static_cast<unsigned long long>(elapsed % 60),
+            static_cast<unsigned long long>(statistics.GetSuccessfulMoves()));
+        DrawCenteredText(_renderer, _font, summary,
+            centerX, centerY + 77.0f, 22.0f, TextColor);
+
+        constexpr float panelWidth = 780.0f;
+        constexpr float panelHeight = 196.0f;
+        const float panelX = centerX - panelWidth * 0.5f;
+        const float panelY = centerY - 137.0f;
+        _renderer.DrawRect(panelX, panelY, panelWidth, panelHeight,
+            { 0.10f, 0.14f, 0.20f, 1.0f });
+        _renderer.DrawRect(panelX, panelY + panelHeight - 3.0f,
+            panelWidth, 3.0f, HighlightColor);
+
+        const float labelX = panelX + 31.0f;
+        const float spawnedX = panelX + 300.0f;
+        const float pickedUpX = panelX + 464.0f;
+        const float usedX = panelX + 630.0f;
+        const float headerY = centerY + 27.0f;
+        _renderer.DrawText(_font, "ITEM", labelX, headerY, 19.0f, SubtleTextColor);
+        _renderer.DrawText(_font, "SPAWN", spawnedX, headerY, 19.0f, SubtleTextColor);
+        _renderer.DrawText(_font, "PICKUP", pickedUpX, headerY, 19.0f, SubtleTextColor);
+        _renderer.DrawText(_font, "USED", usedX, headerY, 19.0f, SubtleTextColor);
+
+        struct ItemResultRow
+        {
+            const char* name;
+            RunItemType type;
+            Color color;
+            bool isConsumable;
+        };
+        const ItemResultRow rows[] =
+        {
+            { "TIME ORB", RunItemType::TimeOrb, TimeOrbColor, false },
+            { "RECALL", RunItemType::Recall, RecallColor, true },
+            { "WALL BREAK", RunItemType::WallBreak, WallBreakColor, true },
+            { "TELEPORT", RunItemType::Teleport, TeleportColor, true }
+        };
+        for (int i = 0; i < 4; ++i)
+        {
+            const ItemResultRow& row = rows[i];
+            const RunItemCounters totals = statistics.GetItem(row.type);
+            const float y = centerY - 9.0f - 35.0f * static_cast<float>(i);
+            _renderer.DrawText(_font, row.name, labelX, y, 21.0f, row.color);
+
+            char count[40] = {};
+            std::snprintf(count, sizeof(count), "%llu",
+                static_cast<unsigned long long>(totals.spawned));
+            _renderer.DrawText(_font, count, spawnedX, y, 21.0f, TextColor);
+
+            std::snprintf(count, sizeof(count), "%llu",
+                static_cast<unsigned long long>(totals.pickedUp));
+            _renderer.DrawText(_font, count, pickedUpX, y, 21.0f, TextColor);
+
+            if (row.isConsumable)
+            {
+                std::snprintf(count, sizeof(count), "%llu",
+                    static_cast<unsigned long long>(totals.used));
+            }
+            else
+            {
+                std::snprintf(count, sizeof(count), "-");
+            }
+            _renderer.DrawText(_font, count, usedX, y, 21.0f, TextColor);
+        }
+
         if (_record.HasStorageError())
         {
             DrawCenteredText(_renderer, _font, "RECORD SAVE ERROR",
-                centerX, centerY - 25.0f, 19.0f, HighlightColor);
+                centerX, centerY - 170.0f, 19.0f, HighlightColor);
         }
 
         const ButtonBounds menu = ResultButton(_app.GetWidth(), _app.GetHeight());
